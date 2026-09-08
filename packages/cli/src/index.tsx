@@ -5,8 +5,7 @@ import { version } from "../package.json" with { type: "json" };
 
 import { App } from "./app.tsx";
 import { ApiClientError, apiRequest, apiUrl } from "./lib/api-client.ts";
-import { dim, red, violet, bold } from "./lib/colors.ts";
-import { ThemeProvider } from "./providers/theme/index.tsx";
+import { bold, dim, red, violet } from "./lib/colors.ts";
 import type { ConnectionState } from "./components/status-bar.tsx";
 
 /**
@@ -72,15 +71,16 @@ async function main() {
   });
 
   createRoot(renderer).render(
-    <ThemeProvider initial={process.env.DRIFT_THEME}>
-      <App
-        version={version}
-        cwd={displayCwd(process.cwd())}
-        model={model}
-        connection={connection}
-        serverDescription={description}
-      />
-    </ThemeProvider>,
+    <App
+      initialTheme={process.env.DRIFT_THEME}
+      config={{
+        version,
+        cwd: displayCwd(process.cwd()),
+        model,
+        connection,
+        serverDescription: description,
+      }}
+    />,
   );
 }
 

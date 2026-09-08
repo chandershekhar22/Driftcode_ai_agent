@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useRef } from "react";
+import type { InputRenderable } from "@opentui/core";
 
 import { useTheme } from "../providers/theme/index.tsx";
 
 /**
- * The prompt line. Owns nothing but its draft text - submitting hands the
- * value up and clears, so the parent decides what a submission means.
+ * The prompt line.
+ *
+ * The input is uncontrolled: the renderable owns the draft text and we clear it
+ * through a ref after submitting. Mirroring it into React state would re-render
+ * the whole screen on every keystroke, and a React value that never changes
+ * pushes no update to the renderable - so the field would never clear.
  */
 export function InputBar({
   onSubmit,
@@ -16,7 +21,7 @@ export function InputBar({
   disabled?: boolean;
 }) {
   const { theme } = useTheme();
-  const [value, setValue] = useState("");
+  const inputRef = useRef<InputRenderable>(null);
 
   // OpenTUI's JSX namespace extends React's, so the intrinsic <input> merges
   // OpenTUI's onSubmit(value: string) with the DOM form handler. Taking
@@ -28,7 +33,10 @@ export function InputBar({
     if (!trimmed) return;
 
     onSubmit(trimmed);
-    setValue("");
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   };
 
   return (
@@ -42,12 +50,11 @@ export function InputBar({
     >
       <text fg={theme.accent}>{"> "}</text>
       <input
+        ref={inputRef}
         flexGrow={1}
         focused={!disabled}
-        value={value}
         placeholder={placeholder}
         backgroundColor={theme.panel}
-        onInput={setValue}
         onSubmit={handleSubmit}
       />
     </box>

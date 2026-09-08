@@ -1,39 +1,22 @@
 import { useState } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
-import type { ModelSpec } from "@driftcode/shared";
+import { RouterProvider } from "react-router";
 
-import { Header } from "./components/header.tsx";
-import { InputBar } from "./components/input-bar.tsx";
-import { Panel } from "./components/panel.tsx";
-import { StatusBar, type ConnectionState } from "./components/status-bar.tsx";
-import { RootLayout } from "./layouts/root-layout.tsx";
-import { useTheme } from "./providers/theme/index.tsx";
+import { createAppRouter } from "./router.tsx";
+import {
+  AppConfigProvider,
+  type AppConfig,
+} from "./providers/app-config/index.tsx";
+import { SessionsProvider } from "./providers/sessions/index.tsx";
+import { ThemeProvider, useTheme } from "./providers/theme/index.tsx";
 
-const HINTS = [
-  { key: "ctrl+t", label: "theme" },
-  { key: "ctrl+c", label: "quit" },
-] as const;
-
-export interface AppProps {
-  version: string;
-  cwd: string;
-  model: ModelSpec;
-  connection: ConnectionState;
-  serverDescription: string;
-}
-
-export function App({
-  version,
-  cwd,
-  model,
-  connection,
-  serverDescription,
-}: AppProps) {
+/**
+ * Keys that work on every screen. Screen-local keys (esc, enter) are handled
+ * by the screens themselves.
+ */
+function GlobalKeys() {
   const renderer = useRenderer();
-  const { theme, cycleTheme } = useTheme();
-
-  // Echoed back for now. Chapter 5 replaces this with the model's reply.
-  const [entries, setEntries] = useState<string[]>([]);
+  const { cycleTheme } = useTheme();
 
   useKeyboard((key) => {
     if (key.ctrl && key.name === "c") {
@@ -46,55 +29,31 @@ export function App({
     }
   });
 
-  return (
-    <RootLayout
-      header={<Header cwd={cwd} version={version} />}
-      footer={
-        <StatusBar
-          model={model.label}
-          connection={connection}
-          hints={HINTS}
-        />
-      }
-    >
-      <Panel title=" driftcode " flexGrow={1}>
-        {entries.length === 0 ? (
-          <box flexDirection="column">
-            <text fg={theme.text}>Terminal UI is up.</text>
-            <text> </text>
-            <text fg={theme.muted}>{serverDescription}</text>
-            <text fg={theme.muted}>
-              Model: {model.label} - {model.blurb}
-            </text>
-            <text> </text>
-            <text fg={theme.muted}>
-              Type below and press enter. For now your input is echoed back;
-            </text>
-            <text fg={theme.muted}>
-              the model gets wired in at chapter 5.
-            </text>
-          </box>
-        ) : (
-          <box flexDirection="column">
-            {entries.map((entry, index) => (
-              <text key={index}>
-                <span fg={theme.accent}>{"> "}</span>
-                <span fg={theme.text}>{entry}</span>
-              </text>
-            ))}
-          </box>
-        )}
-      </Panel>
+  return null;
+}
 
-      <InputBar
-        onSubmit={(value) => setEntries((current) => [...current, value])}
-        disabled={connection === "offline"}
-        placeholder={
-          connection === "offline"
-            ? "Server offline - start it with: bun run dev:server"
-            : "Ask anything, or describe what to build..."
-        }
-      />
-    </RootLayout>
+export function App({
+  config,
+  initialTheme,
+  initialEntries,
+}: {
+  config: AppConfig;
+  initialTheme?: string;
+  initialEntries?: string[];
+}) {
+  // Built exactly once. A useMemo keyed on `initialEntries` would rebuild the
+  // router on every render whenever a caller passes an inline array, which
+  // remounts the whole tree and loses navigation history.
+  const [router] = useState(() => createAppRouter(initialEntries));
+
+  return (
+    <ThemeProvider initial={initialTheme}>
+      <AppConfigProvider config={config}>
+        <SessionsProvider>
+          <GlobalKeys />
+          <RouterProvider router={router} />
+        </SessionsProvider>
+      </AppConfigProvider>
+    </ThemeProvider>
   );
 }

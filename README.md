@@ -58,3 +58,19 @@ Three ship in the box - `midnight` (default), `ember`, and `paper`. Cycle with
 
 Themes are plain colour maps in `packages/cli/src/theme.ts`; adding one is a
 single entry in that file.
+
+## Tests
+
+    bun test
+
+The CLI is tested against OpenTUI's headless renderer: each test mounts the app
+in a fixed-size fake terminal, drives it with synthetic keystrokes, and asserts
+on the captured character frame - so navigation, input handling and screen
+content are all covered without a real terminal.
+
+Two things worth knowing when writing more of these:
+
+- A lone `esc` byte is held back by the parser until it can rule out a longer
+  escape sequence, so give it ~60ms before asserting.
+- Both the transcript and the prompt draw a `>` caret, so match the prompt row
+  as the last one on screen, not the first.
