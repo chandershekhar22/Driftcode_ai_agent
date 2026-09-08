@@ -1,4 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // OpenTUI ships its own JSX runtime whose intrinsic elements are box, text,
+    // input and friends. Without this, TypeScript resolves <text> and <span> to
+    // React's DOM/SVG elements and every colour prop is an error.
+    "jsxImportSource": "@opentui/react"
+  },
   "include": ["src"]
 }

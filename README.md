@@ -40,3 +40,21 @@ Run the API server and the CLI in two terminals:
 
 Under active development, built chapter by chapter. See the chapter list in the
 project notes.
+
+## Keybindings
+
+| Key      | Action              |
+| -------- | ------------------- |
+| `enter`  | Submit the prompt   |
+| `ctrl+t` | Cycle the theme     |
+| `ctrl+c` | Quit                |
+
+## Themes
+
+Three ship in the box - `midnight` (default), `ember`, and `paper`. Cycle with
+`ctrl+t`, or pick one at startup:
+
+    DRIFT_THEME=paper bun run dev:cli
+
+Themes are plain colour maps in `packages/cli/src/theme.ts`; adding one is a
+single entry in that file.

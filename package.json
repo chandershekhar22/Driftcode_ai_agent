@@ -6,7 +6,7 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "dev:server": "bun run --hot packages/server/src/index.ts",
-    "dev:cli": "bun run --watch packages/cli/src/index.ts",
+    "dev:cli": "bun run --watch packages/cli/src/index.tsx",
     "typecheck": "bun run --filter '*' typecheck"
   },
   "dependencies": {

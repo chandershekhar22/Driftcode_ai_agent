@@ -3,20 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "module": "src/index.ts",
+  "module": "src/index.tsx",
   "bin": {
     "drift": "./bin/drift"
   },
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "dev": "bun run --watch src/index.tsx",
+    "build": "bun build src/index.tsx --outdir dist --target bun",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@driftcode/shared": "workspace:*",
+    "@opentui/core": "^0.5.11",
+    "@opentui/react": "^0.5.11",
+    "react": "^19",
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/react": "^19.2.18"
   }
 }
