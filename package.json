@@ -1,0 +1,19 @@
+{
+  "name": "driftcode",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:server": "bun run --hot packages/server/src/index.ts",
+    "dev:cli": "bun run --watch packages/cli/src/index.ts",
+    "typecheck": "bun run --filter '*' typecheck"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}
