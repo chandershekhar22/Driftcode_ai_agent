@@ -1,4 +1,4 @@
-import type { Message } from "../../providers/sessions/index.tsx";
+import type { Message } from "@driftcode/shared";
 
 import { AssistantMessage } from "./assistant-message.tsx";
 import { UserMessage } from "./user-message.tsx";

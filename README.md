@@ -31,6 +31,11 @@ machine - so file edits and shell commands never leave your computer.
     bun install
     cp .env.example .env      # then fill in the values
 
+Set DATABASE_URL to a Postgres connection string (Neon has a free tier), then
+create the tables:
+
+    bun run --cwd packages/database db:migrate
+
 Run the API server and the CLI in two terminals:
 
     bun run dev:server
@@ -59,9 +64,23 @@ Three ship in the box - `midnight` (default), `ember`, and `paper`. Cycle with
 Themes are plain colour maps in `packages/cli/src/theme.ts`; adding one is a
 single entry in that file.
 
+## Database
+
+| Command | Description |
+| ------- | ----------- |
+| `bun run --cwd packages/database db:migrate` | Create and apply a migration |
+| `bun run --cwd packages/database db:generate` | Regenerate the client after a schema edit |
+| `bun run --cwd packages/database db:studio` | Browse the data |
+
+Prisma 7 keeps the connection URL in `prisma.config.ts`, not in
+`schema.prisma`. The runtime client gets it through the pg driver adapter.
+
 ## Tests
 
     bun test
+
+`DRIFT_LIVE=1 bun test` additionally runs the tests that need a live server on
+`localhost:4000`; without it those are skipped and the suite stays offline.
 
 The CLI is tested against OpenTUI's headless renderer: each test mounts the app
 in a fixed-size fake terminal, drives it with synthetic keystrokes, and asserts

@@ -75,7 +75,8 @@ async function main() {
       initialTheme={process.env.DRIFT_THEME}
       config={{
         version,
-        cwd: displayCwd(process.cwd()),
+        cwd: process.cwd(),
+        cwdLabel: displayCwd(process.cwd()),
         model,
         connection,
         serverDescription: description,

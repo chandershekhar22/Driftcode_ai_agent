@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import { RouterProvider } from "react-router";
 
+import type { SessionsClient } from "./lib/sessions-api.ts";
 import { createAppRouter } from "./router.tsx";
 import {
   AppConfigProvider,
@@ -36,10 +37,13 @@ export function App({
   config,
   initialTheme,
   initialEntries,
+  /** Tests pass an in-memory implementation; production uses the HTTP one. */
+  sessionsClient,
 }: {
   config: AppConfig;
   initialTheme?: string;
   initialEntries?: string[];
+  sessionsClient?: SessionsClient;
 }) {
   // Built exactly once. A useMemo keyed on `initialEntries` would rebuild the
   // router on every render whenever a caller passes an inline array, which
@@ -49,7 +53,10 @@ export function App({
   return (
     <ThemeProvider initial={initialTheme}>
       <AppConfigProvider config={config}>
-        <SessionsProvider>
+        <SessionsProvider
+          client={sessionsClient}
+          enabled={config.connection === "connected"}
+        >
           <GlobalKeys />
           <RouterProvider router={router} />
         </SessionsProvider>

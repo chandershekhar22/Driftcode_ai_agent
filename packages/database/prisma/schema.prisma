@@ -1,0 +1,54 @@
+// Sessions and their transcripts.
+//
+// There is deliberately no User model yet - sessions are owned by whoever runs
+// the server. Chapter 10 introduces Clerk auth and adds the owner relation;
+// doing it now would mean carrying a fake user around for six chapters.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+model Session {
+  id    String @id @default(cuid())
+  title String @default("New session")
+
+  /// Model id at the time the session was created, e.g. "claude-opus-5".
+  /// Stored as a string rather than an enum so retiring a model does not
+  /// invalidate old rows.
+  model String
+
+  /// Absolute path of the project this session is working in.
+  cwd String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+
+  // The session list is always "most recently touched first".
+  @@index([updatedAt(sort: Desc)])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  sessionId String
+  role      MessageRole
+  content   String
+  createdAt DateTime    @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Transcripts are always read in order for one session.
+  @@index([sessionId, createdAt])
+}

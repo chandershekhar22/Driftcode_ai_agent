@@ -1,8 +1,10 @@
-/**
- * Prisma schema and client live here.
- *
- * Deliberately empty until chapter 4 - the package exists now so the workspace
- * layout is settled and nothing has to move later.
- */
+export {
+  DatabaseNotConfiguredError,
+  disconnectDatabase,
+  getPrisma,
+  isDatabaseConfigured,
+  pingDatabase,
+} from "./client.ts";
 
-export {};
+export type { Message, Session } from "./generated/client.ts";
+export { MessageRole } from "./generated/enums.ts";

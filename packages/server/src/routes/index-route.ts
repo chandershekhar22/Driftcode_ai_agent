@@ -12,7 +12,12 @@ export const indexRoute = new Hono().get("/", (c) =>
     version,
     message: "The API for the driftcode terminal agent. Nothing to see here - use the CLI.",
     routes: {
-      "GET /health": "liveness, version and protocol check",
+      "GET /health": "liveness, version, protocol and database check",
+      "GET /sessions": "list recent sessions",
+      "POST /sessions": "start a session",
+      "GET /sessions/:id": "one session with its transcript",
+      "DELETE /sessions/:id": "delete a session and its messages",
+      "POST /sessions/:id/messages": "append a message",
     },
   }),
 );

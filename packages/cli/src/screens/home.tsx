@@ -5,10 +5,11 @@ import { useAppConfig } from "../providers/app-config/index.tsx";
 import { useSessions } from "../providers/sessions/index.tsx";
 import { useTheme } from "../providers/theme/index.tsx";
 
-/** "3 minutes ago" - precise enough for a session list, no dependency needed. */
-function relativeTime(timestamp: number): string {
-  const seconds = Math.round((Date.now() - timestamp) / 1000);
+/** "3m ago" - precise enough for a session list, no dependency needed. */
+function relativeTime(iso: string): string {
+  const seconds = Math.round((Date.now() - Date.parse(iso)) / 1000);
 
+  if (!Number.isFinite(seconds)) return "";
   if (seconds < 60) return "just now";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -17,8 +18,8 @@ function relativeTime(timestamp: number): string {
 
 export function HomeScreen() {
   const { theme } = useTheme();
-  const { model, connection, serverDescription } = useAppConfig();
-  const { sessions } = useSessions();
+  const { model } = useAppConfig();
+  const { sessions, state, error } = useSessions();
   const navigate = useNavigate();
 
   const options = [
@@ -27,9 +28,11 @@ export function HomeScreen() {
       description: `Start a conversation with ${model.label}`,
       value: "new",
     },
-    ...sessions.slice(0, 8).map((session) => ({
+    ...sessions.map((session) => ({
       name: session.title,
-      description: `${session.messages.length} messages - ${relativeTime(session.createdAt)}`,
+      description: `${session.messageCount} message${
+        session.messageCount === 1 ? "" : "s"
+      } - ${relativeTime(session.updatedAt)}`,
       value: `session:${session.id}`,
     })),
   ];
@@ -53,11 +56,17 @@ export function HomeScreen() {
       </box>
 
       <box paddingX={1} paddingBottom={1}>
-        <text fg={theme.muted}>
-          {connection === "connected"
-            ? serverDescription
-            : `Offline - ${serverDescription}`}
-        </text>
+        {state === "error" ? (
+          <text fg={theme.danger}>{error}</text>
+        ) : (
+          <text fg={theme.muted}>
+            {state === "loading"
+              ? "Loading sessions..."
+              : sessions.length === 0
+                ? "No sessions yet."
+                : `${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
+          </text>
+        )}
       </box>
 
       <Panel title=" Sessions " flexGrow={1} focused>

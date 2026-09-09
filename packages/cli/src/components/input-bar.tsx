@@ -42,6 +42,11 @@ export function InputBar({
   return (
     <box
       flexDirection="row"
+      // One row of text between two border rows. Without a fixed height the
+      // transcript above squeezes the bar and the text is drawn over the
+      // bottom border.
+      height={3}
+      flexShrink={0}
       border
       borderStyle="rounded"
       borderColor={disabled ? theme.border : theme.borderFocus}

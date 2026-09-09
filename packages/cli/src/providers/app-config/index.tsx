@@ -10,7 +10,10 @@ import type { ConnectionState } from "../../components/status-bar.tsx";
  */
 export interface AppConfig {
   version: string;
+  /** Absolute path of the project - what the server stores. */
   cwd: string;
+  /** The same path shortened for the header. */
+  cwdLabel: string;
   model: ModelSpec;
   connection: ConnectionState;
   serverDescription: string;

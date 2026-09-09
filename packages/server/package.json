@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@driftcode/database": "workspace:*",
     "@driftcode/shared": "workspace:*",
+    "@hono/zod-validator": "^0.9.1",
     "dotenv": "^17.4.2",
     "hono": "^4.9.10",
     "zod": "^4.1.13"

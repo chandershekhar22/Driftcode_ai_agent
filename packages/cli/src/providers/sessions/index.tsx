@@ -2,110 +2,117 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import type { ModelId } from "@driftcode/shared";
+import type { CreateSessionInput, Session, SessionSummary } from "@driftcode/shared";
+
+import { ApiClientError } from "../../lib/api-client.ts";
+import { httpSessions, type SessionsClient } from "../../lib/sessions-api.ts";
 
 /**
- * In-memory session store.
+ * The session list, backed by the server.
  *
- * Chapter 4 moves this behind the API and Postgres; the shape of what screens
- * consume is deliberately the shape the server will return, so swapping the
- * backing store does not ripple into the UI.
+ * Only the list lives here - a single session's transcript is fetched by the
+ * screen that shows it (see `useSession`), so opening one session does not
+ * hold every other transcript in memory.
  */
 
-export type MessageRole = "user" | "assistant";
-
-export interface Message {
-  id: string;
-  role: MessageRole;
-  content: string;
-  createdAt: number;
-}
-
-export interface Session {
-  id: string;
-  title: string;
-  model: ModelId;
-  createdAt: number;
-  messages: Message[];
-}
+export type LoadState = "loading" | "ready" | "error";
 
 interface SessionsContextValue {
-  sessions: Session[];
-  getSession: (id: string) => Session | undefined;
-  createSession: (model: ModelId) => Session;
-  appendMessage: (sessionId: string, role: MessageRole, content: string) => void;
+  sessions: SessionSummary[];
+  state: LoadState;
+  error: string | null;
+  refresh: () => Promise<void>;
+  createSession: (input: CreateSessionInput) => Promise<Session | null>;
+  removeSession: (id: string) => Promise<void>;
+  /** Exposed so screens can talk to the same backend the list uses. */
+  client: SessionsClient;
 }
 
 const SessionsContext = createContext<SessionsContextValue | null>(null);
 
-/** Short, readable, and unique enough for a single process. */
-function makeId(): string {
-  return Math.random().toString(36).slice(2, 10);
+export function describeError(error: unknown): string {
+  if (error instanceof ApiClientError) return error.message;
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
-/** First line of the first message, trimmed to something that fits a list. */
-function titleFrom(content: string): string {
-  const firstLine = content.split("\n")[0]?.trim() ?? "";
-  if (firstLine.length <= 48) return firstLine;
-  return `${firstLine.slice(0, 47)}...`;
-}
+export function SessionsProvider({
+  children,
+  client = httpSessions,
+  /** Skipped when the server was unreachable at startup. */
+  enabled = true,
+}: {
+  children: ReactNode;
+  client?: SessionsClient;
+  enabled?: boolean;
+}) {
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [state, setState] = useState<LoadState>(enabled ? "loading" : "error");
+  const [error, setError] = useState<string | null>(
+    enabled ? null : "Not connected to the driftcode server.",
+  );
 
-export function SessionsProvider({ children }: { children: ReactNode }) {
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const refresh = useCallback(async () => {
+    if (!enabled) return;
 
-  const createSession = useCallback((model: ModelId): Session => {
-    const session: Session = {
-      id: makeId(),
-      title: "New session",
-      model,
-      createdAt: Date.now(),
-      messages: [],
-    };
+    try {
+      setSessions(await client.list());
+      setState("ready");
+      setError(null);
+    } catch (cause) {
+      setState("error");
+      setError(describeError(cause));
+    }
+  }, [client, enabled]);
 
-    setSessions((current) => [session, ...current]);
-    return session;
-  }, []);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
-  const appendMessage = useCallback(
-    (sessionId: string, role: MessageRole, content: string) => {
-      setSessions((current) =>
-        current.map((session) => {
-          if (session.id !== sessionId) return session;
-
-          const message: Message = {
-            id: makeId(),
-            role,
-            content,
-            createdAt: Date.now(),
-          };
-
-          return {
-            ...session,
-            // The first thing the user says names the session.
-            title:
-              session.messages.length === 0 && role === "user"
-                ? titleFrom(content)
-                : session.title,
-            messages: [...session.messages, message],
-          };
-        }),
-      );
+  const createSession = useCallback(
+    async (input: CreateSessionInput) => {
+      try {
+        const session = await client.create(input);
+        await refresh();
+        return session;
+      } catch (cause) {
+        setState("error");
+        setError(describeError(cause));
+        return null;
+      }
     },
-    [],
+    [client, refresh],
+  );
+
+  const removeSession = useCallback(
+    async (id: string) => {
+      try {
+        await client.remove(id);
+        await refresh();
+      } catch (cause) {
+        setState("error");
+        setError(describeError(cause));
+      }
+    },
+    [client, refresh],
   );
 
   const value = useMemo<SessionsContextValue>(
     () => ({
       sessions,
-      getSession: (id) => sessions.find((session) => session.id === id),
+      state,
+      error,
+      refresh,
       createSession,
-      appendMessage,
+      removeSession,
+      client,
     }),
-    [sessions, createSession, appendMessage],
+    [sessions, state, error, refresh, createSession, removeSession, client],
   );
 
   return <SessionsContext value={value}>{children}</SessionsContext>;

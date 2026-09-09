@@ -21,6 +21,12 @@ export class ApiClientError extends Error {
   }
 }
 
+interface RequestOptions {
+  method?: "GET" | "POST" | "DELETE" | "PATCH";
+  /** Serialized as JSON. */
+  body?: unknown;
+}
+
 /**
  * Fetch `path` and parse the body with `schema`.
  *
@@ -31,20 +37,22 @@ export class ApiClientError extends Error {
 export async function apiRequest<T extends z.ZodType>(
   path: string,
   schema: T,
-  init?: RequestInit,
+  options: RequestOptions = {},
 ): Promise<z.infer<T>> {
   let response: Response;
 
   try {
     response = await fetch(`${apiUrl}${path}`, {
-      ...init,
+      method: options.method ?? "GET",
       headers: {
         "content-type": "application/json",
         [PROTOCOL_HEADER]: String(PROTOCOL_VERSION),
-        ...init?.headers,
       },
+      ...(options.body === undefined
+        ? {}
+        : { body: JSON.stringify(options.body) }),
     });
-  } catch (cause) {
+  } catch {
     throw new ApiClientError(
       `Could not reach the driftcode server at ${apiUrl}. Is it running?`,
       "unreachable",

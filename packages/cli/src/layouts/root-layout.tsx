@@ -41,7 +41,7 @@ function hintsForPath(pathname: string) {
  */
 export function RootLayout() {
   const { theme } = useTheme();
-  const { version, cwd, model, connection } = useAppConfig();
+  const { version, cwdLabel, model, connection } = useAppConfig();
   const { pathname } = useLocation();
 
   return (
@@ -51,7 +51,7 @@ export function RootLayout() {
       height="100%"
       backgroundColor={theme.bg}
     >
-      <Header cwd={cwd} version={version} />
+      <Header cwd={cwdLabel} version={version} />
       <box flexGrow={1} flexDirection="column" paddingX={1} paddingBottom={1}>
         <Outlet />
       </box>
