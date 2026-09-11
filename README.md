@@ -46,20 +46,52 @@ Run the API server and the CLI in two terminals:
 Under active development, built chapter by chapter. See the chapter list in the
 project notes.
 
+## Usage
+
+    drift [options]
+
+| Flag | Effect |
+| ---- | ------ |
+| `-r, --resume` | Open the most recent session |
+| `-m, --model <id>` | Use this model for new sessions, and remember it |
+| `-t, --theme <name>` | Use this theme for one run |
+| `-h, --help` | Show usage |
+
 ## Keybindings
 
-| Key      | Action              |
-| -------- | ------------------- |
-| `enter`  | Submit the prompt   |
-| `ctrl+t` | Cycle the theme     |
-| `ctrl+c` | Quit                |
+| Key      | Where    | Action                                      |
+| -------- | -------- | ------------------------------------------- |
+| `enter`  | anywhere | Select / send                               |
+| `esc`    | session  | Back, or interrupt a reply in progress      |
+| `d`      | list     | Delete the highlighted session (asks first) |
+| `alt+m`  | session  | Switch model                                |
+| `ctrl+t` | anywhere | Cycle the theme                             |
+| `ctrl+c` | anywhere | Quit                                        |
+
+Choosing keys for a terminal app is more constrained than it looks:
+
+- `ctrl+m`, `ctrl+i`, `ctrl+j` and `ctrl+h` are the ASCII codes for enter, tab,
+  linefeed and backspace. A terminal cannot tell them apart from those keys, so
+  they can never be bound.
+- `ctrl+p`, `ctrl+b`, `ctrl+k` and friends are taken by editors. Run inside the
+  VS Code integrated terminal and `ctrl+p` opens Quick Open; the CLI never sees
+  it. `alt`-based bindings survive both.
+- `ctrl+d` means EOF by convention, which is a poor fit for a destructive
+  action, so deleting a session uses plain `d` plus a confirmation.
+
+## Preferences
+
+Model, theme, and the last session opened are remembered in
+`~/.drift/config.json`. It is written atomically, and a file that is missing,
+corrupt, or written by a newer version falls back to defaults rather than
+stopping the CLI - preferences are a convenience, never a dependency.
 
 ## Themes
 
 Three ship in the box - `midnight` (default), `ember`, and `paper`. Cycle with
-`ctrl+t`, or pick one at startup:
+`ctrl+t` (the choice is remembered), or pick one for a single run:
 
-    DRIFT_THEME=paper bun run dev:cli
+    bun run dev:cli -- --theme paper
 
 Themes are plain colour maps in `packages/cli/src/theme.ts`; adding one is a
 single entry in that file.
@@ -70,6 +102,15 @@ Set `ANTHROPIC_API_KEY` in `.env` and restart the server. Models are declared
 in `packages/shared/src/models.ts`; the server maps each entry's `provider` to
 an AI SDK provider, so adding an OpenAI model is one entry there plus
 `OPENAI_API_KEY` - no server change.
+
+### How the picker knows what is usable
+
+`GET /models` reports what the server can actually run. Models it cannot run
+stay in the list, greyed out with the reason ("needs ANTHROPIC_API_KEY"), and
+the picker refuses to start a session on one. Hiding them would leave the user
+wondering where a model went; naming the missing key tells them how to fix it.
+
+### Streaming
 
 Replies stream over newline-delimited JSON (`POST /sessions/:id/chat`). One
 event per line: `start`, then `delta` per chunk, then `done` or `error`. The

@@ -5,6 +5,9 @@ import { resolveModel } from "@driftcode/shared";
 import { App } from "../app.tsx";
 import { createFakeSessions } from "./fake-sessions.ts";
 
+/** Tests must never write to the real ~/.drift/config.json. */
+const noPersist = async () => {};
+
 const CONFIG = {
   version: "0.0.0-test",
   cwd: "C:/projects/demo",
@@ -26,6 +29,7 @@ async function mountSession() {
       config={CONFIG}
       initialEntries={[`/session/${created.id}`]}
       sessionsClient={sessions}
+      persistConfig={noPersist}
     />,
     { width: 90, height: 28 },
   );

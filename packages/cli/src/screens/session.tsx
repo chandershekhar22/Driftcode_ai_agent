@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useKeyboard } from "@opentui/react";
 import { useNavigate, useParams } from "react-router";
 import { resolveModel } from "@driftcode/shared";
@@ -9,6 +10,7 @@ import { Panel } from "../components/panel.tsx";
 import { Spinner } from "../components/spinner.tsx";
 import { useSession } from "../hooks/use-session.ts";
 import { useAppConfig } from "../providers/app-config/index.tsx";
+import { useConfig } from "../providers/config/index.tsx";
 import { useTheme } from "../providers/theme/index.tsx";
 
 export function SessionScreen() {
@@ -17,10 +19,24 @@ export function SessionScreen() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
 
+  const { rememberSession } = useConfig();
   const { session, state, error, sending, streaming, send, stop } =
     useSession(sessionId);
 
+  // Opening a session makes it the one `drift --resume` reopens.
+  useEffect(() => {
+    if (sessionId) rememberSession(sessionId);
+  }, [rememberSession, sessionId]);
+
   useKeyboard((key) => {
+    // Not ctrl+m (that is ASCII carriage return, indistinguishable from Enter)
+    // and not ctrl+p, which VS Code swallows for its own Quick Open before the
+    // integrated terminal ever sees it. alt is free on both counts.
+    if (key.meta && key.name === "m" && !sending) {
+      navigate(`/session/${sessionId}/model`);
+      return;
+    }
+
     if (key.name !== "escape") return;
 
     // Mid-reply, esc interrupts rather than navigating away - leaving would
@@ -60,10 +76,14 @@ export function SessionScreen() {
       <Panel title={` ${session.title} `} flexGrow={1} focused>
         {empty ? (
           <box flexDirection="column">
-            <text fg={theme.muted}>
+            {/* flexShrink={0}: without it a short terminal shrinks these rows
+                to zero height and paints them on top of each other. */}
+            <text fg={theme.muted} flexShrink={0}>
               Nothing here yet. Describe what you want to build.
             </text>
-            <text fg={theme.muted}>Model: {model.label}</text>
+            <text fg={theme.muted} flexShrink={0}>
+              Model: {model.label}
+            </text>
           </box>
         ) : (
           <scrollbox flexGrow={1} backgroundColor={theme.panel}>

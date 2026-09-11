@@ -1,6 +1,7 @@
 import { createMemoryRouter } from "react-router";
 
 import { RootLayout } from "./layouts/root-layout.tsx";
+import { ChangeModelScreen } from "./screens/change-model.tsx";
 import { HomeScreen } from "./screens/home.tsx";
 import { NewSessionScreen } from "./screens/new-session.tsx";
 import { SessionScreen } from "./screens/session.tsx";
@@ -23,6 +24,10 @@ export function createAppRouter(initialEntries: string[] = ["/"]) {
           { index: true, element: <HomeScreen /> },
           { path: "new", element: <NewSessionScreen /> },
           { path: "session/:sessionId", element: <SessionScreen /> },
+          {
+            path: "session/:sessionId/model",
+            element: <ChangeModelScreen />,
+          },
         ],
       },
     ],

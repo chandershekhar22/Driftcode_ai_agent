@@ -8,6 +8,7 @@ import {
   type Message,
   type MessageRole,
   type Session,
+  type UpdateSessionInput,
   type SessionSummary,
 } from "@driftcode/shared";
 
@@ -25,6 +26,7 @@ export interface SessionsClient {
   list(): Promise<SessionSummary[]>;
   get(id: string): Promise<Session>;
   create(input: CreateSessionInput): Promise<Session>;
+  update(id: string, input: UpdateSessionInput): Promise<Session>;
   remove(id: string): Promise<void>;
   appendMessage(
     sessionId: string,
@@ -52,6 +54,13 @@ export const httpSessions: SessionsClient = {
   create(input) {
     return apiRequest("/sessions", sessionSchema, {
       method: "POST",
+      body: input,
+    });
+  },
+
+  update(id, input) {
+    return apiRequest(`/sessions/${id}`, sessionSchema, {
+      method: "PATCH",
       body: input,
     });
   },

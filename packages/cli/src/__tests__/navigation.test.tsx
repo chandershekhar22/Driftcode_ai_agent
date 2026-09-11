@@ -5,6 +5,9 @@ import { resolveModel } from "@driftcode/shared";
 import { App } from "../app.tsx";
 import { createFakeSessions } from "./fake-sessions.ts";
 
+/** Tests must never write to the real ~/.drift/config.json. */
+const noPersist = async () => {};
+
 const CONFIG = {
   version: "0.0.0-test",
   cwd: "C:/projects/demo",
@@ -23,6 +26,7 @@ async function mount(initialEntries?: string[]) {
       config={CONFIG}
       initialEntries={initialEntries}
       sessionsClient={sessions}
+      persistConfig={noPersist}
     />,
     { width: 90, height: 28 },
   );
@@ -195,7 +199,7 @@ describe("navigation", () => {
     sessions.failNext("Could not reach the driftcode server.");
 
     const setup = await testRender(
-      <App config={CONFIG} sessionsClient={sessions} />,
+      <App config={CONFIG} sessionsClient={sessions} persistConfig={noPersist} />,
       { width: 90, height: 28 },
     );
 

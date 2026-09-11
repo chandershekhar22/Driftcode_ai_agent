@@ -87,6 +87,13 @@ export const createSessionSchema = z.object({
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
+export const updateSessionSchema = z.object({
+  model: z.string().min(1).optional(),
+  title: z.string().min(1).max(120).optional(),
+});
+
+export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
+
 export const sessionListSchema = z.object({
   sessions: z.array(sessionSummarySchema),
 });

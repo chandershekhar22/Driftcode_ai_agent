@@ -1,13 +1,19 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import { RouterProvider } from "react-router";
 
+import type { DriftConfig } from "./lib/config.ts";
 import type { SessionsClient } from "./lib/sessions-api.ts";
 import { createAppRouter } from "./router.tsx";
 import {
   AppConfigProvider,
   type AppConfig,
 } from "./providers/app-config/index.tsx";
+import {
+  ConfigProvider,
+  useConfig,
+  type PersistConfig,
+} from "./providers/config/index.tsx";
 import { SessionsProvider } from "./providers/sessions/index.tsx";
 import { ThemeProvider, useTheme } from "./providers/theme/index.tsx";
 
@@ -33,16 +39,40 @@ function GlobalKeys() {
   return null;
 }
 
+/**
+ * Sits between the config and theme providers so that cycling the theme is
+ * written straight back to ~/.drift/config.json.
+ */
+function ThemedRoot({
+  initialTheme,
+  children,
+}: {
+  initialTheme?: string;
+  children: ReactNode;
+}) {
+  const { setPreferredTheme } = useConfig();
+
+  return (
+    <ThemeProvider initial={initialTheme} onChange={setPreferredTheme}>
+      {children}
+    </ThemeProvider>
+  );
+}
+
 export function App({
   config,
   initialTheme,
   initialEntries,
+  initialConfig,
+  persistConfig,
   /** Tests pass an in-memory implementation; production uses the HTTP one. */
   sessionsClient,
 }: {
   config: AppConfig;
   initialTheme?: string;
   initialEntries?: string[];
+  initialConfig?: DriftConfig;
+  persistConfig?: PersistConfig;
   sessionsClient?: SessionsClient;
 }) {
   // Built exactly once. A useMemo keyed on `initialEntries` would rebuild the
@@ -51,16 +81,18 @@ export function App({
   const [router] = useState(() => createAppRouter(initialEntries));
 
   return (
-    <ThemeProvider initial={initialTheme}>
-      <AppConfigProvider config={config}>
-        <SessionsProvider
-          client={sessionsClient}
-          enabled={config.connection === "connected"}
-        >
-          <GlobalKeys />
-          <RouterProvider router={router} />
-        </SessionsProvider>
-      </AppConfigProvider>
-    </ThemeProvider>
+    <ConfigProvider initial={initialConfig} persist={persistConfig}>
+      <ThemedRoot initialTheme={initialTheme}>
+        <AppConfigProvider config={config}>
+          <SessionsProvider
+            client={sessionsClient}
+            enabled={config.connection === "connected"}
+          >
+            <GlobalKeys />
+            <RouterProvider router={router} />
+          </SessionsProvider>
+        </AppConfigProvider>
+      </ThemedRoot>
+    </ConfigProvider>
   );
 }

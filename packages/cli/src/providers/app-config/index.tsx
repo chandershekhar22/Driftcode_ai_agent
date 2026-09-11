@@ -1,7 +1,8 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import type { ModelSpec } from "@driftcode/shared";
+import type { ModelCatalog, ModelSpec } from "@driftcode/shared";
 
 import type { ConnectionState } from "../../components/status-bar.tsx";
+import { fallbackCatalog } from "../../lib/models-api.ts";
 
 /**
  * Facts about this run that every screen may need. Set once at startup and
@@ -17,6 +18,8 @@ export interface AppConfig {
   model: ModelSpec;
   connection: ConnectionState;
   serverDescription: string;
+  /** What the server can actually run. Optional so tests need not supply it. */
+  catalog?: ModelCatalog;
 }
 
 const AppConfigContext = createContext<AppConfig | null>(null);
@@ -31,6 +34,15 @@ export function AppConfigProvider({
   const value = useMemo(() => config, [config]);
 
   return <AppConfigContext value={value}>{children}</AppConfigContext>;
+}
+
+/**
+ * The model list the pickers show. Falls back to the static registry when the
+ * server never answered, so the UI still renders something usable offline.
+ */
+export function useModelCatalog(): ModelCatalog {
+  const { catalog } = useAppConfig();
+  return catalog ?? fallbackCatalog();
 }
 
 export function useAppConfig(): AppConfig {

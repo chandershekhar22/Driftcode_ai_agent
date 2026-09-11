@@ -31,6 +31,10 @@ export function Panel({
       backgroundColor={theme.panel}
       flexDirection="column"
       flexGrow={flexGrow}
+      // Clip rather than let children paint over each other. Without this a
+      // short terminal collapses stacked rows onto one line, and because
+      // spaces are transparent the result is two strings interleaved.
+      overflow="hidden"
       padding={padding}
     >
       {children}

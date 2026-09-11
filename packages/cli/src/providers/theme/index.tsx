@@ -21,19 +21,31 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({
   children,
   initial,
+  onChange,
 }: {
   children: ReactNode;
   initial?: string;
+  /** Called whenever the theme changes, so it can be remembered. */
+  onChange?: (name: string) => void;
 }) {
   const [theme, setThemeState] = useState<Theme>(() => resolveTheme(initial));
 
   const cycleTheme = useCallback(() => {
-    setThemeState((current) => nextTheme(current));
-  }, []);
+    setThemeState((current) => {
+      const next = nextTheme(current);
+      onChange?.(next.name);
+      return next;
+    });
+  }, [onChange]);
 
-  const setTheme = useCallback((name: string) => {
-    setThemeState(resolveTheme(name));
-  }, []);
+  const setTheme = useCallback(
+    (name: string) => {
+      const next = resolveTheme(name);
+      setThemeState(next);
+      onChange?.(next.name);
+    },
+    [onChange],
+  );
 
   const value = useMemo(
     () => ({ theme, cycleTheme, setTheme }),

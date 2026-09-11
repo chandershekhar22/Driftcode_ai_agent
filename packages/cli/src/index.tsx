@@ -1,11 +1,14 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
-import { healthSchema, resolveModel } from "@driftcode/shared";
+import { findModel, healthSchema, resolveModel } from "@driftcode/shared";
 import { version } from "../package.json" with { type: "json" };
 
 import { App } from "./app.tsx";
 import { ApiClientError, apiRequest, apiUrl } from "./lib/api-client.ts";
-import { bold, dim, red, violet } from "./lib/colors.ts";
+import { HELP_TEXT, parseArgs } from "./lib/args.ts";
+import { bold, dim, red, violet, yellow } from "./lib/colors.ts";
+import { readConfig, writeConfig } from "./lib/config.ts";
+import { fallbackCatalog, fetchCatalog } from "./lib/models-api.ts";
 import type { ConnectionState } from "./components/status-bar.tsx";
 
 /**
@@ -37,9 +40,12 @@ async function probeServer(): Promise<{
 }> {
   try {
     const health = await apiRequest("/health", healthSchema);
+
     return {
       connection: "connected",
-      description: `Connected to ${health.service} v${health.version} at ${apiUrl}.`,
+      description: health.database
+        ? `Connected to ${health.service} v${health.version} at ${apiUrl}.`
+        : `Connected to ${health.service}, but it has no database. Set DATABASE_URL and restart it.`,
     };
   } catch (error) {
     const message =
@@ -49,7 +55,38 @@ async function probeServer(): Promise<{
 }
 
 async function main() {
-  const model = resolveModel(process.env.DRIFT_MODEL);
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) {
+    console.log(HELP_TEXT);
+    console.log();
+    return;
+  }
+
+  for (const flag of args.unknown) {
+    console.log(`  ${yellow("!")} Ignoring unrecognised argument: ${flag}`);
+  }
+
+  const stored = await readConfig();
+
+  // Precedence throughout: an explicit flag beats a saved preference, which
+  // beats the built-in default.
+  const modelId = args.model ?? stored.model;
+
+  if (args.model && !findModel(args.model)) {
+    console.log(
+      `  ${yellow("!")} "${args.model}" is not a known model - using the default instead.`,
+    );
+  }
+
+  const model = resolveModel(modelId);
+  const theme = args.theme ?? stored.theme;
+
+  // A flag is for one run, but naming a model is almost always meant to stick.
+  if (args.model && findModel(args.model)) {
+    await writeConfig({ model: args.model });
+  }
+
   const { connection, description } = await probeServer();
 
   if (connection === "offline") {
@@ -64,6 +101,32 @@ async function main() {
     console.log();
   }
 
+  // Ask the server what it can actually run, so the picker never offers a
+  // model that would fail the moment a message is sent.
+  const catalog =
+    connection === "connected" ? await fetchCatalog() : fallbackCatalog();
+
+  if (catalog.empty) {
+    console.log(
+      `  ${yellow("!")} The server has no model provider configured.`,
+    );
+    console.log(
+      `  ${dim("  Set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env.")}`,
+    );
+    console.log();
+  }
+
+  // --resume only makes sense if we have somewhere to resume to; otherwise
+  // fall through to the session list rather than erroring.
+  const initialEntries =
+    args.resume && stored.lastSessionId
+      ? [`/session/${stored.lastSessionId}`]
+      : undefined;
+
+  if (args.resume && !stored.lastSessionId) {
+    console.log(`  ${yellow("!")} No previous session to resume.`);
+  }
+
   const renderer = await createCliRenderer({
     // We handle ctrl+c ourselves so the terminal is always restored cleanly.
     exitOnCtrlC: false,
@@ -72,7 +135,9 @@ async function main() {
 
   createRoot(renderer).render(
     <App
-      initialTheme={process.env.DRIFT_THEME}
+      initialTheme={theme}
+      initialEntries={initialEntries}
+      initialConfig={stored}
       config={{
         version,
         cwd: process.cwd(),
@@ -80,6 +145,7 @@ async function main() {
         model,
         connection,
         serverDescription: description,
+        catalog,
       }}
     />,
   );

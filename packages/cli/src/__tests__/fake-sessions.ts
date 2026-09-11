@@ -5,6 +5,7 @@ import type {
   MessageRole,
   Session,
   SessionSummary,
+  UpdateSessionInput,
 } from "@driftcode/shared";
 
 import type { SessionsClient } from "../lib/sessions-api.ts";
@@ -123,6 +124,17 @@ export function createFakeSessions(): SessionsClient & {
       };
 
       stored.set(session.id, session);
+      return structuredClone(session);
+    },
+
+    async update(id: string, input: UpdateSessionInput) {
+      check();
+      const session = stored.get(id);
+      if (!session) throw new Error("No session with that id.");
+
+      if (input.model !== undefined) session.model = input.model;
+      if (input.title !== undefined) session.title = input.title;
+
       return structuredClone(session);
     },
 

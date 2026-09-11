@@ -1,16 +1,22 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
-import { findModel, keyNameFor, type ModelSpec } from "@driftcode/shared";
+import {
+  MODELS,
+  findModel,
+  keyNameFor,
+  type CatalogModel,
+  type ModelSpec,
+} from "@driftcode/shared";
 
 import { env } from "./env.ts";
 
 /**
- * Turns a model id from the shared registry into something the AI SDK can run.
+ * Turns a model id from the registry into something the AI SDK can run, and
+ * reports which models this particular server is able to run at all.
  *
- * The registry owns which models exist; this owns how to reach them. Adding a
- * model to the registry needs no change here as long as its provider is one we
- * already know.
+ * The registry owns which models exist; this owns how to reach them and
+ * whether they are reachable.
  */
 
 export class ModelUnavailableError extends Error {
@@ -23,9 +29,35 @@ export class ModelUnavailableError extends Error {
   }
 }
 
-/** True when at least one provider key is configured. */
+/** Every model this server knows about. */
+export function allModels(): readonly ModelSpec[] {
+  return MODELS;
+}
+
+function apiKeyFor(provider: ModelSpec["provider"]): string | undefined {
+  return provider === "anthropic" ? env.ANTHROPIC_API_KEY : env.OPENAI_API_KEY;
+}
+
 export function hasAnyProvider(): boolean {
   return Boolean(env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY);
+}
+
+/** The catalogue the CLI shows, with unusable models marked rather than hidden. */
+export function buildCatalog(): CatalogModel[] {
+  return allModels().map((spec) => {
+    const available = Boolean(apiKeyFor(spec.provider));
+
+    return {
+      id: spec.id,
+      provider: spec.provider,
+      label: spec.label,
+      blurb: spec.blurb,
+      thinking: spec.thinking,
+      costPerMTok: spec.costPerMTok,
+      available,
+      ...(available ? {} : { reason: `needs ${keyNameFor(spec.provider)}` }),
+    };
+  });
 }
 
 export function resolveLanguageModel(modelId: string): {
@@ -36,21 +68,19 @@ export function resolveLanguageModel(modelId: string): {
 
   if (!spec) {
     throw new ModelUnavailableError(
-      `This session uses "${modelId}", which is not in the model registry.`,
+      `This session uses "${modelId}", which this server cannot run.`,
       "unknown_model",
     );
   }
 
-  const keyName = keyNameFor(spec.provider);
-  const apiKey =
-    spec.provider === "anthropic" ? env.ANTHROPIC_API_KEY : env.OPENAI_API_KEY;
+  const apiKey = apiKeyFor(spec.provider);
 
   if (!apiKey) {
     // "Nothing is set up" and "this model needs a different key" are different
     // problems: the first needs onboarding, the second is a one-line fix.
     throw new ModelUnavailableError(
       hasAnyProvider()
-        ? `${spec.label} needs ${keyName}. Add it to .env and restart the server.`
+        ? `${spec.label} needs ${keyNameFor(spec.provider)}. Add it to .env and restart the server.`
         : "No model provider is connected. Add ANTHROPIC_API_KEY (or OPENAI_API_KEY) to .env and restart the server.",
       "missing_api_key",
     );

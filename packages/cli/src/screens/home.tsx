@@ -1,5 +1,9 @@
+import { useState } from "react";
+import { useKeyboard } from "@opentui/react";
 import { useNavigate } from "react-router";
+import type { SessionSummary } from "@driftcode/shared";
 
+import { Notice } from "../components/notice.tsx";
 import { Panel } from "../components/panel.tsx";
 import { useAppConfig } from "../providers/app-config/index.tsx";
 import { useSessions } from "../providers/sessions/index.tsx";
@@ -19,8 +23,15 @@ function relativeTime(iso: string): string {
 export function HomeScreen() {
   const { theme } = useTheme();
   const { model } = useAppConfig();
-  const { sessions, state, error } = useSessions();
+  const { sessions, state, error, removeSession } = useSessions();
   const navigate = useNavigate();
+
+  // The select owns the cursor and exposes no getter for it, so we mirror it
+  // here to know which row a keybinding applies to.
+  const [highlighted, setHighlighted] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<SessionSummary | null>(
+    null,
+  );
 
   const options = [
     {
@@ -37,7 +48,33 @@ export function HomeScreen() {
     })),
   ];
 
+  /** The first row is "New session", so session rows are offset by one. */
+  const highlightedSession = sessions[highlighted - 1];
+
+  useKeyboard((key) => {
+    if (pendingDelete) {
+      if (key.name === "y") {
+        const target = pendingDelete;
+        setPendingDelete(null);
+        void removeSession(target.id);
+      } else if (key.name === "n" || key.name === "escape") {
+        setPendingDelete(null);
+      }
+      return;
+    }
+
+    // Destructive, so it asks first - there is no undo for a deleted
+    // transcript.
+    // Plain d: the list has no text input, and ctrl+d conventionally means
+    // EOF/quit, which is a bad thing to overload with a destructive action.
+    if (key.name === "d" && !key.ctrl && highlightedSession) {
+      setPendingDelete(highlightedSession);
+    }
+  });
+
   const handleSelect = (_index: number, option: { value?: unknown } | null) => {
+    if (pendingDelete) return;
+
     const value = typeof option?.value === "string" ? option.value : null;
     if (!value) return;
 
@@ -64,7 +101,7 @@ export function HomeScreen() {
               ? "Loading sessions..."
               : sessions.length === 0
                 ? "No sessions yet."
-                : `${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
+                : `${sessions.length} session${sessions.length === 1 ? "" : "s"} - d to delete`}
           </text>
         )}
       </box>
@@ -72,7 +109,7 @@ export function HomeScreen() {
       <Panel title=" Sessions " flexGrow={1} focused>
         <select
           flexGrow={1}
-          focused
+          focused={pendingDelete === null}
           options={options}
           showDescription
           backgroundColor={theme.panel}
@@ -80,9 +117,18 @@ export function HomeScreen() {
           descriptionColor={theme.muted}
           focusedTextColor={theme.accent}
           selectedTextColor={theme.accent}
+          onChange={(index) => setHighlighted(index)}
           onSelect={handleSelect}
         />
       </Panel>
+
+      {pendingDelete && (
+        <Notice
+          tone="warning"
+          message={`Delete "${pendingDelete.title}" and its ${pendingDelete.messageCount} messages?`}
+          hint="y to delete, n to keep"
+        />
+      )}
     </box>
   );
 }

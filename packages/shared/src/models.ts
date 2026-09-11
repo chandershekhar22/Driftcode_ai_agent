@@ -5,8 +5,9 @@
  * Anthropic id. `costPerMTok` is USD per million tokens and is only used to
  * show what a session is costing; billing is settled server-side in chapter 11.
  *
- * Adding a model is one entry here. The server maps `provider` to an AI SDK
- * provider, so a new OpenAI model needs no server changes - only a key in .env.
+ * Which of these a given server can actually run depends on the keys it has,
+ * so the CLI asks the server (GET /models) rather than assuming this whole
+ * list is usable.
  */
 
 export type Provider = "anthropic" | "openai";
@@ -76,7 +77,7 @@ export function resolveModel(id: string | undefined): ModelSpec {
   return match ?? findModel(DEFAULT_MODEL)!;
 }
 
-/** Which env var must be set for a model to be usable. */
+/** Which env var must be set for a provider to work. */
 export function keyNameFor(provider: Provider): string {
   return provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
 }

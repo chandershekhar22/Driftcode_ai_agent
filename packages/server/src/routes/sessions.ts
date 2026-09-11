@@ -1,9 +1,14 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { getPrisma } from "@driftcode/database";
-import { createMessageSchema, createSessionSchema } from "@driftcode/shared";
+import {
+  createMessageSchema,
+  createSessionSchema,
+  updateSessionSchema,
+} from "@driftcode/shared";
 
 import { appendMessage } from "../lib/messages.ts";
+import { allModels } from "../lib/models.ts";
 import { validate } from "../lib/validator.ts";
 import {
   serializeMessage,
@@ -57,6 +62,52 @@ export const sessionsRoute = new Hono()
     return c.json(serializeSession(session));
   })
 
+
+  .patch("/:id", validate("json", updateSessionSchema), async (c) => {
+    const id = c.req.param("id");
+    const input = c.req.valid("json");
+
+    // Nothing to change is a no-op, not an error - the CLI sends whichever
+    // fields the user actually touched.
+    if (input.model === undefined && input.title === undefined) {
+      const current = await getPrisma().session.findUnique({
+        where: { id },
+        include: { messages: { orderBy: { createdAt: "asc" } } },
+      });
+
+      if (!current) {
+        throw new HTTPException(404, { message: "No session with that id." });
+      }
+
+      return c.json(serializeSession(current));
+    }
+
+    if (
+      input.model !== undefined &&
+      !allModels().some((spec) => spec.id === input.model)
+    ) {
+      throw new HTTPException(400, {
+        message: `"${input.model}" is not a model this server knows about.`,
+      });
+    }
+
+    const updated = await getPrisma()
+      .session.update({
+        where: { id },
+        data: {
+          ...(input.model !== undefined ? { model: input.model } : {}),
+          ...(input.title !== undefined ? { title: input.title } : {}),
+        },
+        include: { messages: { orderBy: { createdAt: "asc" } } },
+      })
+      .catch(() => null);
+
+    if (!updated) {
+      throw new HTTPException(404, { message: "No session with that id." });
+    }
+
+    return c.json(serializeSession(updated));
+  })
   .delete("/:id", async (c) => {
     const id = c.req.param("id");
 

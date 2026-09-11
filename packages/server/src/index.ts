@@ -5,6 +5,7 @@ import { env } from "./lib/env.ts";
 import { healthRoute } from "./routes/health.ts";
 import { indexRoute } from "./routes/index-route.ts";
 import { chatRoute } from "./routes/chat.ts";
+import { modelsRoute } from "./routes/models.ts";
 import { sessionsRoute } from "./routes/sessions.ts";
 
 const app = new Hono();
@@ -35,6 +36,7 @@ app.notFound((c) =>
 
 app.route("/", indexRoute);
 app.route("/health", healthRoute);
+app.route("/models", modelsRoute);
 app.route("/sessions", sessionsRoute);
 app.route("/sessions", chatRoute);
 
