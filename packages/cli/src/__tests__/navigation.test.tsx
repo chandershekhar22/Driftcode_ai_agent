@@ -63,23 +63,17 @@ async function sendMessage(
   await setup.flush();
   setup.mockInput.pressEnter();
 
-  // Wait on the backend having stored it rather than on a frame count - the
-  // round trip is async, and a frame budget makes the test a race.
+  // Wait on the backend having stored the whole turn rather than on a frame
+  // count - the stream is async, and a frame budget makes the test a race.
   await setup.waitFor(
     () =>
       [...setup.sessions.stored.values()].some((session) =>
-        session.messages.some((message) => message.content === text),
+        session.messages.some((message) => message.role === "assistant"),
       ),
     { maxPasses: 200 },
   );
 
-  // React commits these updates outside act(), so the renderer's own frame
-  // loop is not guaranteed to have picked them up yet - yield to the macrotask
-  // queue once before asserting on pixels.
   await settle(setup);
-  await setup.waitForFrame((frame) => frame.includes("Saved."), {
-    maxPasses: 200,
-  });
 }
 
 describe("navigation", () => {
@@ -128,9 +122,11 @@ describe("navigation", () => {
     await startSession(setup);
     await sendMessage(setup, "add a login page");
 
+    // A turn stores two messages: the user's and the reply.
     const [session] = [...setup.sessions.stored.values()];
-    expect(session?.messages).toHaveLength(1);
+    expect(session?.messages).toHaveLength(2);
     expect(session?.messages[0]?.content).toBe("add a login page");
+    expect(session?.messages[1]?.role).toBe("assistant");
     expect(setup.captureCharFrame()).toContain("add a login page");
 
     setup.renderer.destroy();
@@ -178,7 +174,7 @@ describe("navigation", () => {
     const frame = await setup.waitForFrame((f) =>
       f.includes("rename the button"),
     );
-    expect(frame).toContain("1 message");
+    expect(frame).toContain("2 messages");
 
     setup.renderer.destroy();
   });

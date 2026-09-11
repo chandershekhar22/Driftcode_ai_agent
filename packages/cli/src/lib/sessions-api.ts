@@ -1,3 +1,4 @@
+import type { ChatEvent } from "@driftcode/shared";
 import {
   deletedSchema,
   messageSchema,
@@ -11,6 +12,7 @@ import {
 } from "@driftcode/shared";
 
 import { apiRequest } from "./api-client.ts";
+import { streamChat } from "./chat-stream.ts";
 
 /**
  * Everything the UI needs from the sessions API, behind an interface.
@@ -29,6 +31,12 @@ export interface SessionsClient {
     role: MessageRole,
     content: string,
   ): Promise<Message>;
+  /** Sends a turn and streams the reply. */
+  chat(
+    sessionId: string,
+    content: string,
+    signal?: AbortSignal,
+  ): AsyncIterable<ChatEvent>;
 }
 
 export const httpSessions: SessionsClient = {
@@ -50,6 +58,10 @@ export const httpSessions: SessionsClient = {
 
   async remove(id) {
     await apiRequest(`/sessions/${id}`, deletedSchema, { method: "DELETE" });
+  },
+
+  chat(sessionId, content, signal) {
+    return streamChat(sessionId, content, signal);
   },
 
   appendMessage(sessionId, role, content) {

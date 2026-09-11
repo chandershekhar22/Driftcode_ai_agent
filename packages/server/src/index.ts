@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { env } from "./lib/env.ts";
 import { healthRoute } from "./routes/health.ts";
 import { indexRoute } from "./routes/index-route.ts";
+import { chatRoute } from "./routes/chat.ts";
 import { sessionsRoute } from "./routes/sessions.ts";
 
 const app = new Hono();
@@ -35,6 +36,7 @@ app.notFound((c) =>
 app.route("/", indexRoute);
 app.route("/health", healthRoute);
 app.route("/sessions", sessionsRoute);
+app.route("/sessions", chatRoute);
 
 console.log(`driftcode server listening on http://localhost:${env.PORT}`);
 

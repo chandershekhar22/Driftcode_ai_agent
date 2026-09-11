@@ -1,4 +1,5 @@
 import type {
+  ChatEvent,
   CreateSessionInput,
   Message,
   MessageRole,
@@ -19,10 +20,16 @@ import type { SessionsClient } from "../lib/sessions-api.ts";
 export function createFakeSessions(): SessionsClient & {
   readonly stored: Map<string, Session>;
   failNext: (message: string) => void;
+  /** What the fake model will stream on the next chat turn. */
+  scriptReply: (text: string) => void;
+  /** Make the next chat turn emit an error event partway through. */
+  failChat: (message: string) => void;
 } {
   const stored = new Map<string, Session>();
   let counter = 0;
   let failure: string | null = null;
+  let reply = "Sure - here is what I would do.";
+  let chatFailure: string | null = null;
 
   const check = () => {
     if (failure) {
@@ -46,6 +53,46 @@ export function createFakeSessions(): SessionsClient & {
 
     failNext(message) {
       failure = message;
+    },
+
+    scriptReply(text) {
+      reply = text;
+    },
+
+    failChat(message) {
+      chatFailure = message;
+    },
+
+    async *chat(sessionId: string, content: string): AsyncGenerator<ChatEvent> {
+      check();
+
+      const userMessage = await this.appendMessage(sessionId, "user", content);
+      yield { type: "start", userMessage };
+
+      // Split into a few chunks so tests exercise incremental assembly rather
+      // than a single delta that happens to be the whole reply.
+      const chunks = reply.match(/.{1,8}/gs) ?? [];
+      let text = "";
+
+      for (const chunk of chunks) {
+        text += chunk;
+        yield { type: "delta", text: chunk };
+      }
+
+      if (chatFailure) {
+        const message = chatFailure;
+        chatFailure = null;
+        yield { type: "error", code: "model_error", message };
+        return;
+      }
+
+      const assistantMessage = await this.appendMessage(
+        sessionId,
+        "assistant",
+        text,
+      );
+
+      yield { type: "done", message: assistantMessage };
     },
 
     async list() {

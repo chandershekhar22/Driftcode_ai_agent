@@ -11,11 +11,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.50",
+    "@ai-sdk/openai": "^4.0.62",
     "@driftcode/database": "workspace:*",
     "@driftcode/shared": "workspace:*",
     "@hono/zod-validator": "^0.9.1",
+    "ai": "^7.0.94",
     "dotenv": "^17.4.2",
     "hono": "^4.9.10",
     "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "^4.0.11"
   }
 }

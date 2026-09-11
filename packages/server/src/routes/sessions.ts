@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { getPrisma } from "@driftcode/database";
 import { createMessageSchema, createSessionSchema } from "@driftcode/shared";
 
+import { appendMessage } from "../lib/messages.ts";
 import { validate } from "../lib/validator.ts";
 import {
   serializeMessage,
@@ -10,14 +11,6 @@ import {
   serializeSessionSummary,
 } from "../lib/serialize.ts";
 import { requireDatabase } from "../middleware/require-database.ts";
-
-/** First line of a message, trimmed to something that fits a list row. */
-function titleFrom(content: string): string {
-  const firstLine = content.split("\n")[0]?.trim() ?? "";
-  if (firstLine.length === 0) return "New session";
-  if (firstLine.length <= 60) return firstLine;
-  return `${firstLine.slice(0, 59)}...`;
-}
 
 export const sessionsRoute = new Hono()
   .use("*", requireDatabase)
@@ -93,32 +86,12 @@ export const sessionsRoute = new Hono()
       throw new HTTPException(404, { message: "No session with that id." });
     }
 
-    // One transaction: the list is ordered by updatedAt, so a stored message
-    // whose session was not touched would sort the session to the wrong place.
-    // The touch uses the message's own timestamp rather than a second clock
-    // reading, so a session is never marked older than its newest message.
-    const message = await prisma.$transaction(async (tx) => {
-      const created = await tx.message.create({
-        data: {
-          sessionId,
-          role: input.role,
-          content: input.content,
-        },
-      });
-
-      await tx.session.update({
-        where: { id: sessionId },
-        data: {
-          // The first user message names the session.
-          ...(session.title === "New session" && input.role === "user"
-            ? { title: titleFrom(input.content) }
-            : {}),
-          updatedAt: created.createdAt,
-        },
-      });
-
-      return created;
-    });
+    const message = await appendMessage(
+      prisma,
+      sessionId,
+      input.role,
+      input.content,
+    );
 
     return c.json(serializeMessage(message), 201);
   });

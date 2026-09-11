@@ -64,6 +64,18 @@ Three ship in the box - `midnight` (default), `ember`, and `paper`. Cycle with
 Themes are plain colour maps in `packages/cli/src/theme.ts`; adding one is a
 single entry in that file.
 
+## Models
+
+Set `ANTHROPIC_API_KEY` in `.env` and restart the server. Models are declared
+in `packages/shared/src/models.ts`; the server maps each entry's `provider` to
+an AI SDK provider, so adding an OpenAI model is one entry there plus
+`OPENAI_API_KEY` - no server change.
+
+Replies stream over newline-delimited JSON (`POST /sessions/:id/chat`). One
+event per line: `start`, then `delta` per chunk, then `done` or `error`. The
+user message is stored before the model runs, and whatever streamed before a
+failure is kept rather than discarded.
+
 ## Database
 
 | Command | Description |
