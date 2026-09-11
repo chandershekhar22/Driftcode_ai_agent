@@ -116,3 +116,48 @@ describe("streaming a reply", () => {
     setup.renderer.destroy();
   });
 });
+
+describe("when no model provider is connected", () => {
+  test("the failure is visible even though the transcript is empty", async () => {
+    const setup = await mountSession();
+
+    // What the server does when no API key is configured: it rejects before
+    // storing anything, so the transcript stays empty.
+    setup.sessions.failNext(
+      "No model provider is connected. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to .env and restart the server.",
+    );
+
+    await setup.mockInput.typeText("hello");
+    await setup.flush();
+    setup.mockInput.pressEnter();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await setup.flush();
+
+    const frame = setup.captureCharFrame();
+    expect(frame).toContain("No model provider is connected");
+    expect(frame).toContain("ANTHROPIC_API_KEY");
+
+    setup.renderer.destroy();
+  });
+
+  test("the prompt becomes usable again so the user can retry", async () => {
+    const setup = await mountSession();
+    setup.sessions.failNext("nope");
+
+    await setup.mockInput.typeText("hello");
+    await setup.flush();
+    setup.mockInput.pressEnter();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await setup.flush();
+
+    const promptRow = setup
+      .captureCharFrame()
+      .split("\n")
+      .filter((line) => line.includes("> "))
+      .at(-1);
+
+    expect(promptRow).not.toContain("Waiting for the reply");
+
+    setup.renderer.destroy();
+  });
+});

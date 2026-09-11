@@ -121,11 +121,15 @@ export function useSession(sessionId: string | undefined) {
           }
         }
       } catch (cause) {
-        setError(describeError(cause));
+        const message = describeError(cause);
         setStreaming(null);
+
         // The server may still have stored the user message - resync rather
-        // than leaving an optimistic row that might not exist.
+        // than leaving an optimistic row that might not exist. This has to
+        // happen before the error is recorded: a successful load clears the
+        // error field, which would silently swallow the message.
         await load();
+        setError(message);
       } finally {
         setSending(false);
         abortRef.current = null;

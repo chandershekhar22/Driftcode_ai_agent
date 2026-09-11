@@ -23,6 +23,11 @@ export class ModelUnavailableError extends Error {
   }
 }
 
+/** True when at least one provider key is configured. */
+export function hasAnyProvider(): boolean {
+  return Boolean(env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY);
+}
+
 export function resolveLanguageModel(modelId: string): {
   model: LanguageModel;
   spec: ModelSpec;
@@ -41,8 +46,12 @@ export function resolveLanguageModel(modelId: string): {
     spec.provider === "anthropic" ? env.ANTHROPIC_API_KEY : env.OPENAI_API_KEY;
 
   if (!apiKey) {
+    // "Nothing is set up" and "this model needs a different key" are different
+    // problems: the first needs onboarding, the second is a one-line fix.
     throw new ModelUnavailableError(
-      `${spec.label} needs ${keyName}. Add it to .env and restart the server.`,
+      hasAnyProvider()
+        ? `${spec.label} needs ${keyName}. Add it to .env and restart the server.`
+        : "No model provider is connected. Add ANTHROPIC_API_KEY (or OPENAI_API_KEY) to .env and restart the server.",
       "missing_api_key",
     );
   }

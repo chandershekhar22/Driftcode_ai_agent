@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { resolveModel } from "@driftcode/shared";
 
 import { InputBar } from "../components/input-bar.tsx";
+import { Notice } from "../components/notice.tsx";
 import { AssistantMessage, MessageView } from "../components/messages/index.tsx";
 import { Panel } from "../components/panel.tsx";
 import { Spinner } from "../components/spinner.tsx";
@@ -73,15 +74,11 @@ export function SessionScreen() {
             {streaming !== null && (
               <AssistantMessage content={streaming} streaming />
             )}
-
-            {error !== null && (
-              <text fg={theme.danger} wrapMode="word">
-                {error}
-              </text>
-            )}
           </scrollbox>
         )}
       </Panel>
+
+      {error !== null && <Notice message={error} />}
 
       {sending && (
         <box paddingX={1}>
