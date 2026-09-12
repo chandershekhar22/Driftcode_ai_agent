@@ -1,4 +1,4 @@
-import type { ChatEvent } from "@driftcode/shared";
+import type { ChatEvent, ToolResult } from "@driftcode/shared";
 import {
   deletedSchema,
   messageSchema,
@@ -13,7 +13,7 @@ import {
 } from "@driftcode/shared";
 
 import { apiRequest } from "./api-client.ts";
-import { streamChat } from "./chat-stream.ts";
+import { streamChat, streamToolResults } from "./chat-stream.ts";
 
 /**
  * Everything the UI needs from the sessions API, behind an interface.
@@ -37,6 +37,12 @@ export interface SessionsClient {
   chat(
     sessionId: string,
     content: string,
+    signal?: AbortSignal,
+  ): AsyncIterable<ChatEvent>;
+  /** Reports tool results and streams whatever the agent does next. */
+  continueWithToolResults(
+    sessionId: string,
+    results: ToolResult[],
     signal?: AbortSignal,
   ): AsyncIterable<ChatEvent>;
 }
@@ -71,6 +77,10 @@ export const httpSessions: SessionsClient = {
 
   chat(sessionId, content, signal) {
     return streamChat(sessionId, content, signal);
+  },
+
+  continueWithToolResults(sessionId, results, signal) {
+    return streamToolResults(sessionId, results, signal);
   },
 
   appendMessage(sessionId, role, content) {

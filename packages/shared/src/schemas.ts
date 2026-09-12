@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { agentModeSchema } from "./tools.ts";
+
 /**
  * Wire contracts. Every response the server sends has a schema here, and the
  * CLI parses against it rather than trusting the shape - a version skew
@@ -36,7 +38,13 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 
 // --- messages -------------------------------------------------------------
 
-export const messageRoleSchema = z.enum(["user", "assistant", "system"]);
+export const messageRoleSchema = z.enum([
+  "user",
+  "assistant",
+  "system",
+  /** The outcome of a tool the CLI ran, fed back to the model. */
+  "tool",
+]);
 
 export type MessageRole = z.infer<typeof messageRoleSchema>;
 
@@ -46,6 +54,8 @@ export const messageSchema = z.object({
   role: messageRoleSchema,
   content: z.string(),
   createdAt: z.string(),
+  /** Set on tool messages, so the transcript can label them. */
+  toolName: z.string().nullable().optional(),
 });
 
 export type Message = z.infer<typeof messageSchema>;
@@ -67,6 +77,8 @@ export const sessionSummarySchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   messageCount: z.number().int().nonnegative(),
+  /** Whether the agent may change files, or only read them. */
+  mode: agentModeSchema,
 });
 
 export type SessionSummary = z.infer<typeof sessionSummarySchema>;
@@ -83,6 +95,7 @@ export const createSessionSchema = z.object({
   title: z.string().max(120).optional(),
   /** Absolute path of the project the agent is pointed at. */
   cwd: z.string().min(1),
+  mode: agentModeSchema.optional(),
 });
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
@@ -90,6 +103,7 @@ export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 export const updateSessionSchema = z.object({
   model: z.string().min(1).optional(),
   title: z.string().min(1).max(120).optional(),
+  mode: agentModeSchema.optional(),
 });
 
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;

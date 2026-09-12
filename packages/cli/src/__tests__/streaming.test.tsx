@@ -114,7 +114,8 @@ describe("streaming a reply", () => {
       .filter((line) => line.includes("> "))
       .at(-1);
 
-    expect(promptRow).toContain("Message Opus 5");
+    // Plan mode is the default, so the prompt invites investigation.
+    expect(promptRow).toContain("Ask Opus 5");
     expect(promptRow).not.toContain("Waiting for the reply");
 
     setup.renderer.destroy();

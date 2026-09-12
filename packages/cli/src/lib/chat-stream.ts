@@ -1,3 +1,4 @@
+import type { ToolResult } from "@driftcode/shared";
 import {
   PROTOCOL_HEADER,
   PROTOCOL_VERSION,
@@ -15,21 +16,38 @@ import { ApiClientError, apiUrl } from "./api-client.ts";
  * match the shared schema is dropped rather than crashing the transcript - a
  * newer server adding an event type should not break an older client.
  */
-export async function* streamChat(
+export function streamChat(
   sessionId: string,
   content: string,
+  signal?: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  return streamNdjson(`/sessions/${sessionId}/chat`, { content }, signal);
+}
+
+/** Reports tool results and streams whatever the agent does next. */
+export function streamToolResults(
+  sessionId: string,
+  results: ToolResult[],
+  signal?: AbortSignal,
+): AsyncGenerator<ChatEvent> {
+  return streamNdjson(`/sessions/${sessionId}/tools`, { results }, signal);
+}
+
+async function* streamNdjson(
+  path: string,
+  body: unknown,
   signal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
   let response: Response;
 
   try {
-    response = await fetch(`${apiUrl}/sessions/${sessionId}/chat`, {
+    response = await fetch(`${apiUrl}${path}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         [PROTOCOL_HEADER]: String(PROTOCOL_VERSION),
       },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(body),
       signal,
     });
   } catch {

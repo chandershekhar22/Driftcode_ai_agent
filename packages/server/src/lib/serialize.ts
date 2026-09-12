@@ -18,6 +18,7 @@ export function serializeMessage(message: Message): WireMessage {
     role: message.role,
     content: message.content,
     createdAt: message.createdAt.toISOString(),
+    toolName: message.toolName,
   };
 }
 
@@ -32,6 +33,7 @@ export function serializeSessionSummary(
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),
     messageCount,
+    mode: session.mode,
   };
 }
 

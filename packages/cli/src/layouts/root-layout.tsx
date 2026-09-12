@@ -41,10 +41,11 @@ function hintsForPath(pathname: string) {
     ];
   }
 
+  // Enter-to-send is obvious from the prompt; the bar has to fit on one row.
   return [
-    { key: "enter", label: "send" },
+    { key: "shift+tab", label: "mode" },
     { key: "alt+m", label: "model" },
-    { key: "esc", label: "sessions" },
+    { key: "esc", label: "back" },
     ...GLOBAL_HINTS,
   ];
 }
@@ -82,6 +83,7 @@ export function RootLayout() {
       </box>
       <StatusBar
         model={model.label}
+        mode={activeSession?.mode}
         connection={connection}
         hints={hintsForPath(pathname)}
       />

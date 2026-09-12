@@ -18,6 +18,9 @@ export const indexRoute = new Hono().get("/", (c) =>
       "GET /sessions/:id": "one session with its transcript",
       "DELETE /sessions/:id": "delete a session and its messages",
       "POST /sessions/:id/messages": "append a message",
+      "POST /sessions/:id/chat": "send a turn, stream the reply (ndjson)",
+      "POST /sessions/:id/tools": "report tool results, stream what follows",
+      "GET /models": "models this server can run",
     },
   }),
 );

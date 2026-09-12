@@ -13,10 +13,18 @@ datasource db {
   provider = "postgresql"
 }
 
+/// plan is read-only; build lets the agent write files and run commands.
+enum AgentMode {
+  plan
+  build
+}
+
 enum MessageRole {
   user
   assistant
   system
+  /// The outcome of a tool the CLI ran, fed back to the model.
+  tool
 }
 
 model Session {
@@ -30,6 +38,10 @@ model Session {
 
   /// Absolute path of the project this session is working in.
   cwd String
+
+  /// Whether the agent may change this project or only read it. Sessions open
+  /// in plan mode: the safe default is the one that cannot damage anything.
+  mode AgentMode @default(plan)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -46,6 +58,15 @@ model Message {
   role      MessageRole
   content   String
   createdAt DateTime    @default(now())
+
+  /// On an assistant message: the tool calls it made, as stored ToolCall
+  /// objects. Kept structurally rather than as prose so the next request can
+  /// replay them to the model in the shape it expects.
+  toolCalls Json?
+
+  /// On a tool message: which call it answers.
+  toolCallId String?
+  toolName   String?
 
   session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 

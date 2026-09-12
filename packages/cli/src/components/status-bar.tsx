@@ -1,3 +1,5 @@
+import type { AgentMode } from "@driftcode/shared";
+
 import { useTheme } from "../providers/theme/index.tsx";
 
 export type ConnectionState = "connected" | "offline";
@@ -13,10 +15,13 @@ export type ConnectionState = "connected" | "offline";
  */
 export function StatusBar({
   model,
+  mode,
   connection,
   hints,
 }: {
   model: string;
+  /** Absent outside a session - the mode belongs to a session, not the app. */
+  mode?: AgentMode;
   connection: ConnectionState;
   hints: readonly { key: string; label: string }[];
 }) {
@@ -32,6 +37,12 @@ export function StatusBar({
       overflow="hidden"
     >
       <text flexShrink={0}>
+        {mode ? (
+          <span fg={mode === "build" ? theme.warning : theme.accent}>
+            {mode === "build" ? "BUILD" : "PLAN"}
+          </span>
+        ) : null}
+        {mode ? <span fg={theme.border}>{"  |  "}</span> : null}
         <span fg={connected ? theme.success : theme.danger}>
           {connected ? "*" : "x"}
         </span>
@@ -39,7 +50,7 @@ export function StatusBar({
         <span fg={theme.border}>  |  </span>
         <span fg={theme.accent}>{model}</span>
       </text>
-      <text fg={theme.muted} truncate flexShrink={1}>
+      <text fg={theme.muted} truncate wrapMode="none" flexShrink={1}>
         {hints.map((hint) => `${hint.key} ${hint.label}`).join("   ")}
       </text>
     </box>

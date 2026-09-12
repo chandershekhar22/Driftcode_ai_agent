@@ -42,6 +42,7 @@ export const sessionsRoute = new Hono()
         model: input.model,
         cwd: input.cwd,
         ...(input.title ? { title: input.title } : {}),
+        ...(input.mode ? { mode: input.mode } : {}),
       },
       include: { messages: true },
     });
@@ -69,7 +70,11 @@ export const sessionsRoute = new Hono()
 
     // Nothing to change is a no-op, not an error - the CLI sends whichever
     // fields the user actually touched.
-    if (input.model === undefined && input.title === undefined) {
+    if (
+      input.model === undefined &&
+      input.title === undefined &&
+      input.mode === undefined
+    ) {
       const current = await getPrisma().session.findUnique({
         where: { id },
         include: { messages: { orderBy: { createdAt: "asc" } } },
@@ -97,6 +102,7 @@ export const sessionsRoute = new Hono()
         data: {
           ...(input.model !== undefined ? { model: input.model } : {}),
           ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.mode !== undefined ? { mode: input.mode } : {}),
         },
         include: { messages: { orderBy: { createdAt: "asc" } } },
       })

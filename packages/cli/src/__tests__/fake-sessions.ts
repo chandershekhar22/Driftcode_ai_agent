@@ -1,5 +1,7 @@
 import type {
   ChatEvent,
+  ToolCall,
+  ToolResult,
   CreateSessionInput,
   Message,
   MessageRole,
@@ -25,12 +27,18 @@ export function createFakeSessions(): SessionsClient & {
   scriptReply: (text: string) => void;
   /** Make the next chat turn emit an error event partway through. */
   failChat: (message: string) => void;
+  /** Tool calls the fake agent will request on the next turn. */
+  scriptToolCalls: (calls: ToolCall[]) => void;
+  /** What the fake agent says after it receives tool results. */
+  scriptFollowUp: (text: string) => void;
 } {
   const stored = new Map<string, Session>();
   let counter = 0;
   let failure: string | null = null;
   let reply = "Sure - here is what I would do.";
   let chatFailure: string | null = null;
+  let pendingCalls: ToolCall[] = [];
+  let followUp: string | null = null;
 
   const check = () => {
     if (failure) {
@@ -47,6 +55,7 @@ export function createFakeSessions(): SessionsClient & {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     messageCount: session.messages.length,
+    mode: session.mode,
   });
 
   return {
@@ -62,6 +71,14 @@ export function createFakeSessions(): SessionsClient & {
 
     failChat(message) {
       chatFailure = message;
+    },
+
+    scriptToolCalls(calls) {
+      pendingCalls = calls;
+    },
+
+    scriptFollowUp(text) {
+      followUp = text;
     },
 
     async *chat(sessionId: string, content: string): AsyncGenerator<ChatEvent> {
@@ -80,9 +97,22 @@ export function createFakeSessions(): SessionsClient & {
         yield { type: "delta", text: chunk };
       }
 
+      for (const call of pendingCalls) {
+        yield { type: "tool-call", call };
+      }
+      pendingCalls = [];
+
       if (chatFailure) {
         const message = chatFailure;
         chatFailure = null;
+
+        // The server stores whatever streamed before a failure, so the fake
+        // does too - otherwise a reload would wipe the partial reply and the
+        // test would be asserting something the real server does not do.
+        if (text.length > 0) {
+          await this.appendMessage(sessionId, "assistant", text);
+        }
+
         yield { type: "error", code: "model_error", message };
         return;
       }
@@ -120,11 +150,31 @@ export function createFakeSessions(): SessionsClient & {
         createdAt: now,
         updatedAt: now,
         messageCount: 0,
+        mode: input.mode ?? "plan",
         messages: [],
       };
 
       stored.set(session.id, session);
       return structuredClone(session);
+    },
+
+    /** Streams whatever was scripted for the continuation after tools. */
+    async *continueWithToolResults(sessionId: string, results: ToolResult[]) {
+      check();
+
+      for (const result of results) {
+        await this.appendMessage(sessionId, "tool", result.output);
+        yield { type: "tool-result" as const, result };
+      }
+
+      const text = followUp;
+      followUp = null;
+
+      if (text) {
+        yield { type: "delta" as const, text };
+        const message = await this.appendMessage(sessionId, "assistant", text);
+        yield { type: "done" as const, message };
+      }
     },
 
     async update(id: string, input: UpdateSessionInput) {
@@ -134,6 +184,7 @@ export function createFakeSessions(): SessionsClient & {
 
       if (input.model !== undefined) session.model = input.model;
       if (input.title !== undefined) session.title = input.title;
+      if (input.mode !== undefined) session.mode = input.mode;
 
       return structuredClone(session);
     },

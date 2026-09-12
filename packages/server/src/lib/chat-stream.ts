@@ -1,7 +1,16 @@
-import type { LanguageModel } from "ai";
-import { streamText } from "ai";
+import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import { streamText, tool } from "ai";
 import type { getPrisma } from "@driftcode/database";
-import type { ChatEvent, Message, ModelSpec } from "@driftcode/shared";
+import {
+  summarizeToolCall,
+  toolsForMode,
+  type AgentMode,
+  type ChatEvent,
+  type Message,
+  type ModelSpec,
+  type ToolCall,
+  type ToolName,
+} from "@driftcode/shared";
 
 import { appendMessage } from "./messages.ts";
 import { providerOptionsFor } from "./models.ts";
@@ -21,10 +30,42 @@ export interface ChatStreamOptions {
   model: LanguageModel;
   spec: ModelSpec;
   system: string;
-  /** Full conversation including the turn being sent. */
-  messages: { role: "user" | "assistant"; content: string }[];
-  /** Already stored; echoed back so the client can replace its optimistic row. */
-  userMessage: Message;
+  /** Full conversation including the turn being sent, in model form. */
+  messages: ModelMessage[];
+  /** Decides which tools the agent is offered. */
+  mode: AgentMode;
+  /**
+   * Already stored; echoed back so the client can replace its optimistic row.
+   * Absent when continuing a turn after tool results, which adds no new user
+   * message.
+   */
+  userMessage?: Message;
+}
+
+/**
+ * The tools offered to the model for a given mode.
+ *
+ * None of them carry an `execute`: the agent runs on the server but the files
+ * live on the user's machine, so a call has to travel back to the CLI. Leaving
+ * `execute` off makes the SDK surface the call to us instead of running it.
+ */
+export function buildToolSet(mode: AgentMode): ToolSet {
+  const entries = toolsForMode(mode).map((definition) => [
+    definition.name,
+    tool({
+      description: definition.description,
+      inputSchema: definition.inputSchema,
+    }),
+  ]);
+
+  return Object.fromEntries(entries) as ToolSet;
+}
+
+/** What the transcript records when a turn ends in tool calls. */
+function describeCalls(calls: ToolCall[]): string {
+  return calls
+    .map((call) => `- ${summarizeToolCall(call.name, call.input)}`)
+    .join("\n");
 }
 
 /**
@@ -32,44 +73,71 @@ export interface ChatStreamOptions {
  *
  * Kept out of the route so it can be exercised against a mock model - the
  * route is then only wiring, and the interesting behaviour (assembling deltas,
- * persisting the reply, surviving a mid-stream failure) is testable without an
- * API key or a network call.
+ * surfacing tool calls, persisting the reply, surviving a mid-stream failure)
+ * is testable without an API key or a network call.
  */
 export async function* runChatTurn(
   options: ChatStreamOptions,
 ): AsyncGenerator<ChatEvent> {
-  const { prisma, sessionId, model, spec, system, messages } = options;
+  const { prisma, sessionId, model, spec, system, messages, mode } = options;
 
-  yield { type: "start", userMessage: options.userMessage };
+  if (options.userMessage) {
+    yield { type: "start", userMessage: options.userMessage };
+  }
 
   let text = "";
+  const calls: ToolCall[] = [];
 
   try {
     const result = streamText({
       model,
       system,
       messages,
+      tools: buildToolSet(mode),
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       providerOptions: providerOptionsFor(spec),
     });
 
-    for await (const delta of result.textStream) {
-      text += delta;
-      yield { type: "delta", text: delta };
+    // fullStream rather than textStream: a turn can contain tool calls as well
+    // as prose, and textStream would silently drop them.
+    for await (const part of result.fullStream) {
+      if (part.type === "text-delta") {
+        text += part.text;
+        yield { type: "delta", text: part.text };
+        continue;
+      }
+
+      if (part.type === "tool-call") {
+        const call: ToolCall = {
+          id: part.toolCallId,
+          name: part.toolName as ToolName,
+          input: part.input,
+        };
+
+        calls.push(call);
+        yield { type: "tool-call", call };
+      }
     }
 
     const usage = await result.usage;
 
-    // An empty reply is still a turn, but storing an empty message would
-    // render as a blank bubble - say something instead.
+    // A turn is still a turn when it is all tool calls and no prose - record
+    // what was asked for so the transcript is not a blank bubble.
     const finalText =
-      text.trim().length > 0 ? text : "(the model returned an empty response)";
+      text.trim().length > 0
+        ? text
+        : calls.length > 0
+          ? describeCalls(calls)
+          : "(the model returned an empty response)";
 
     const assistantMessage = await appendMessage(
       prisma,
       sessionId,
       "assistant",
       finalText,
+      // Stored structurally so the next request can replay them to the model
+      // and match each one to its result.
+      calls.length > 0 ? { toolCalls: calls } : {},
     );
 
     yield {
@@ -79,6 +147,7 @@ export async function* runChatTurn(
         inputTokens: usage.inputTokens ?? 0,
         outputTokens: usage.outputTokens ?? 0,
       },
+      ...(calls.length > 0 ? { awaitingTools: true } : {}),
     };
   } catch (error) {
     console.error("Chat stream failed:", error);
