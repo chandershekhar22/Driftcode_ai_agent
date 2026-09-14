@@ -1,14 +1,17 @@
 import { Outlet, useLocation, useParams } from "react-router";
 import { resolveModel } from "@driftcode/shared";
 
+import { DialogHost } from "../components/dialogs/index.tsx";
 import { Header } from "../components/header.tsx";
 import { StatusBar } from "../components/status-bar.tsx";
+import { ToastRail } from "../components/toast-rail.tsx";
 import { useAppConfig } from "../providers/app-config/index.tsx";
+import { useDialog } from "../providers/dialog/index.tsx";
 import { useSessions } from "../providers/sessions/index.tsx";
 import { useTheme } from "../providers/theme/index.tsx";
 
 const GLOBAL_HINTS = [
-  { key: "ctrl+t", label: "theme" },
+  { key: "/", label: "commands" },
   { key: "ctrl+c", label: "quit" },
 ] as const;
 
@@ -43,8 +46,7 @@ function hintsForPath(pathname: string) {
 
   // Enter-to-send is obvious from the prompt; the bar has to fit on one row.
   return [
-    { key: "shift+tab", label: "mode" },
-    { key: "alt+m", label: "model" },
+    { key: "tab", label: "mode" },
     { key: "esc", label: "back" },
     ...GLOBAL_HINTS,
   ];
@@ -61,6 +63,7 @@ export function RootLayout() {
   const { sessions } = useSessions();
   const { pathname } = useLocation();
   const { sessionId } = useParams<{ sessionId: string }>();
+  const { isOpen: dialogOpen } = useDialog();
 
   // Inside a session the status bar must name that session's model, not the
   // app-wide default - they differ the moment anyone switches model.
@@ -78,9 +81,24 @@ export function RootLayout() {
       backgroundColor={theme.bg}
     >
       <Header cwd={cwdLabel} version={version} />
+
       <box flexGrow={1} flexDirection="column" paddingX={1} paddingBottom={1}>
-        <Outlet />
+        {/* Collapsed rather than unmounted while a dialog is open: unmounting
+            the session screen mid-turn would abandon a running agent loop. */}
+        <box
+          flexDirection="column"
+          flexGrow={dialogOpen ? 0 : 1}
+          height={dialogOpen ? 0 : undefined}
+          overflow="hidden"
+        >
+          <Outlet />
+        </box>
+
+        <DialogHost />
       </box>
+
+      <ToastRail />
+
       <StatusBar
         model={model.label}
         mode={activeSession?.mode}

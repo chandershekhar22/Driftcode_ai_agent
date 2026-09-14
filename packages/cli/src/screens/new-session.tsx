@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useKeyboard } from "@opentui/react";
 import { useNavigate } from "react-router";
 import type { CatalogModel } from "@driftcode/shared";
 
@@ -13,6 +12,8 @@ import {
 } from "../providers/app-config/index.tsx";
 import { useConfig } from "../providers/config/index.tsx";
 import { useSessions } from "../providers/sessions/index.tsx";
+import { useDialog } from "../providers/dialog/index.tsx";
+import { useGatedKeyboard } from "../providers/keyboard-layer/index.tsx";
 import { useTheme } from "../providers/theme/index.tsx";
 
 export function NewSessionScreen() {
@@ -22,13 +23,14 @@ export function NewSessionScreen() {
   const catalog = useModelCatalog();
   const { createSession } = useSessions();
   const navigate = useNavigate();
+  const { isOpen: dialogOpen } = useDialog();
 
   const [creating, setCreating] = useState(false);
   const [blocked, setBlocked] = useState<string | null>(null);
 
-  useKeyboard((key) => {
+  useGatedKeyboard((key) => {
     if (key.name === "escape" && !creating) navigate("/");
-  });
+  }, !dialogOpen);
 
   const start = async (model: CatalogModel) => {
     if (creating) return;

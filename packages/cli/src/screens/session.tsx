@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useKeyboard } from "@opentui/react";
 import { useNavigate, useParams } from "react-router";
 import { resolveModel, summarizeToolCall, type AgentMode } from "@driftcode/shared";
 
+import { CommandMenu } from "../components/command-menu/index.tsx";
+import { useCommandMenu } from "../components/command-menu/use-command-menu.ts";
 import { InputBar } from "../components/input-bar.tsx";
 import {
   AssistantMessage,
@@ -15,8 +16,11 @@ import { Spinner } from "../components/spinner.tsx";
 import { useSession } from "../hooks/use-session.ts";
 import { useAppConfig } from "../providers/app-config/index.tsx";
 import { useConfig } from "../providers/config/index.tsx";
+import { useDialog } from "../providers/dialog/index.tsx";
+import { useGatedKeyboard } from "../providers/keyboard-layer/index.tsx";
 import { describeError, useSessions } from "../providers/sessions/index.tsx";
 import { useTheme } from "../providers/theme/index.tsx";
+import { useToast } from "../providers/toast/index.tsx";
 
 export function SessionScreen() {
   const { theme } = useTheme();
@@ -26,6 +30,9 @@ export function SessionScreen() {
 
   const { rememberSession } = useConfig();
   const { client, refresh } = useSessions();
+  const { isOpen: dialogOpen } = useDialog();
+  const { toast } = useToast();
+
   const {
     session,
     state,
@@ -40,8 +47,8 @@ export function SessionScreen() {
     reload,
   } = useSession(sessionId, cwd);
 
+  const menu = useCommandMenu(send);
   const [switchingMode, setSwitchingMode] = useState(false);
-  const [modeError, setModeError] = useState<string | null>(null);
 
   // Opening a session makes it the one `drift --resume` reopens.
   useEffect(() => {
@@ -54,7 +61,6 @@ export function SessionScreen() {
     const next: AgentMode = current === "plan" ? "build" : "plan";
 
     setSwitchingMode(true);
-    setModeError(null);
 
     try {
       await client.update(sessionId, { mode: next });
@@ -63,14 +69,17 @@ export function SessionScreen() {
       // the old mode, and the next toggle then flips from a stale value.
       await reload();
       await refresh();
+      toast(`Switched to ${next} mode.`, "success");
     } catch (cause) {
-      setModeError(describeError(cause));
+      toast(describeError(cause), "danger");
     } finally {
       setSwitchingMode(false);
     }
   };
 
-  useKeyboard((key) => {
+  // Silent while the command menu or a dialog is up, so one keypress is not
+  // acted on twice.
+  useGatedKeyboard((key) => {
     // An approval prompt owns the keyboard while it is up: anything else would
     // let a keystroke meant for it navigate away instead.
     if (awaitingApproval) {
@@ -79,16 +88,18 @@ export function SessionScreen() {
       return;
     }
 
+    // Tab and shift+tab both toggle: tab is what people try first, shift+tab
+    // is the habit from other agents. Neither is used for anything else here.
+    if (key.name === "tab" && session) {
+      void toggleMode(session.mode);
+      return;
+    }
+
     // Not ctrl+m (that is ASCII carriage return, indistinguishable from Enter)
     // and not ctrl+p, which VS Code swallows for its own Quick Open before the
     // integrated terminal ever sees it. alt is free on both counts.
     if (key.meta && key.name === "m" && !sending) {
       navigate(`/session/${sessionId}/model`);
-      return;
-    }
-
-    if (key.name === "tab" && key.shift && session) {
-      void toggleMode(session.mode);
       return;
     }
 
@@ -102,7 +113,7 @@ export function SessionScreen() {
     }
 
     navigate("/");
-  });
+  }, !menu.open && !dialogOpen);
 
   if (state === "loading") {
     return (
@@ -140,7 +151,7 @@ export function SessionScreen() {
             </text>
             <text fg={theme.muted} flexShrink={0}>
               {session.mode === "plan"
-                ? "Plan mode - read-only. shift+tab to switch to build."
+                ? "Plan mode - read-only. tab to switch to build."
                 : "Build mode - writes and commands ask before running."}
             </text>
           </box>
@@ -172,7 +183,6 @@ export function SessionScreen() {
         />
       )}
 
-      {modeError !== null && <Notice message={modeError} />}
       {error !== null && <Notice message={error} />}
 
       {sending && !awaitingApproval && (
@@ -181,17 +191,27 @@ export function SessionScreen() {
         </box>
       )}
 
+      {menu.open && (
+        <CommandMenu
+          draft={menu.draft}
+          onRun={menu.clear}
+          onClose={menu.clear}
+        />
+      )}
+
       <InputBar
-        onSubmit={send}
-        disabled={connection === "offline" || sending}
+        handleRef={menu.handleRef}
+        onSubmit={menu.submit}
+        onChange={menu.setDraft}
+        disabled={connection === "offline" || sending || dialogOpen}
         placeholder={
           connection === "offline"
             ? "Server offline - start it with: bun run dev:server"
             : sending
               ? "Working..."
               : session.mode === "plan"
-                ? `Ask ${model.label} to look into something...`
-                : `Tell ${model.label} what to build...`
+                ? `Ask ${model.label} to look into something, or / for commands...`
+                : `Tell ${model.label} what to build, or / for commands...`
         }
       />
     </box>

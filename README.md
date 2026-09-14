@@ -57,14 +57,34 @@ project notes.
 | `-t, --theme <name>` | Use this theme for one run |
 | `-h, --help` | Show usage |
 
+## Commands
+
+Type `/` at the prompt and the command menu opens under it, filtering as you
+type. The session list has no prompt to type into, so there `/` opens the same
+commands as a searchable dialog.
+
+| Command | Does |
+| ------- | ---- |
+| `/new` | Start a new session |
+| `/sessions` | Browse and search past sessions |
+| `/models` | Choose the model |
+| `/agents` | Switch between plan and build mode |
+| `/theme` | Change the colour theme |
+| `/help` | Show the keyboard shortcuts |
+| `/quit` | Exit |
+
+Every dialog is the same searchable list: type to filter, arrows to move,
+enter to choose, esc to close.
+
 ## Keybindings
 
 | Key      | Where    | Action                                      |
 | -------- | -------- | ------------------------------------------- |
+| `/`      | anywhere | Open the command menu                       |
 | `enter`  | anywhere | Select / send                               |
-| `esc`    | session  | Back, or interrupt a reply in progress      |
+| `esc`    | session  | Back, close, or interrupt a reply           |
+| `tab`    | session  | Switch between plan and build mode          |
 | `d`      | list     | Delete the highlighted session (asks first) |
-| `shift+tab` | session | Switch between plan and build mode        |
 | `alt+m`  | session  | Switch model                                |
 | `ctrl+t` | anywhere | Cycle the theme                             |
 | `ctrl+c` | anywhere | Quit                                        |
@@ -79,6 +99,21 @@ Choosing keys for a terminal app is more constrained than it looks:
   it. `alt`-based bindings survive both.
 - `ctrl+d` means EOF by convention, which is a poor fit for a destructive
   action, so deleting a session uses plain `d` plus a confirmation.
+
+### Who gets a keypress
+
+OpenTUI delivers every key to every subscriber, so a dialog and the screen
+behind it would both act on the same `esc`. Rather than a registry of layers,
+each subscriber is simply told whether it should be listening, using state its
+own screen already has - the menu is only rendered when open, and a screen
+knows a dialog is up because it reads the same context that opened it.
+
+An earlier version did keep a stack of layers that components pushed on mount.
+It did not work, for a reason worth knowing: **a `setState` issued from inside a
+passive effect never re-renders in this reconciler.** The push ran, the state
+never changed, and every component believed it had registered. The same
+`setState` from an event handler or a promise is fine, which is why nothing
+else in the app hit it.
 
 ## Preferences
 

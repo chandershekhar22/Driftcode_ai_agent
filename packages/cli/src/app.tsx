@@ -14,12 +14,16 @@ import {
   useConfig,
   type PersistConfig,
 } from "./providers/config/index.tsx";
+import { DialogProvider } from "./providers/dialog/index.tsx";
 import { SessionsProvider } from "./providers/sessions/index.tsx";
+import { ToastProvider } from "./providers/toast/index.tsx";
 import { ThemeProvider, useTheme } from "./providers/theme/index.tsx";
 
 /**
- * Keys that work on every screen. Screen-local keys (esc, enter) are handled
- * by the screens themselves.
+ * Keys that work everywhere, dialogs included.
+ *
+ * Deliberately outside the layer system: quitting must work no matter what is
+ * on screen, and cycling the theme is harmless from anywhere.
  */
 function GlobalKeys() {
   const renderer = useRenderer();
@@ -67,6 +71,7 @@ export function App({
   persistConfig,
   /** Tests pass an in-memory implementation; production uses the HTTP one. */
   sessionsClient,
+  autoDismissToasts = true,
 }: {
   config: AppConfig;
   initialTheme?: string;
@@ -74,6 +79,8 @@ export function App({
   initialConfig?: DriftConfig;
   persistConfig?: PersistConfig;
   sessionsClient?: SessionsClient;
+  /** Tests hold toasts still so they can be asserted on. */
+  autoDismissToasts?: boolean;
 }) {
   // Built exactly once. A useMemo keyed on `initialEntries` would rebuild the
   // router on every render whenever a caller passes an inline array, which
@@ -88,8 +95,12 @@ export function App({
             client={sessionsClient}
             enabled={config.connection === "connected"}
           >
-            <GlobalKeys />
-            <RouterProvider router={router} />
+              <ToastProvider autoDismiss={autoDismissToasts}>
+                <DialogProvider>
+                  <GlobalKeys />
+                  <RouterProvider router={router} />
+                </DialogProvider>
+              </ToastProvider>
           </SessionsProvider>
         </AppConfigProvider>
       </ThemedRoot>
