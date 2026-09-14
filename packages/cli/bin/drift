@@ -1,2 +1,19 @@
 #!/usr/bin/env bun
-import "../src/index.tsx";
+/**
+ * The `drift` command.
+ *
+ * Prefers the bundle when one has been built, and falls back to the source so
+ * the same entry point works while developing. Paths resolve relative to this
+ * file, not the working directory - the whole point of the command is that it
+ * runs inside whatever project you happen to be in.
+ */
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const bundle = fileURLToPath(new URL("../dist/index.js", import.meta.url));
+
+if (existsSync(bundle)) {
+  await import(bundle);
+} else {
+  await import("../src/index.tsx");
+}

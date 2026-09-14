@@ -28,23 +28,72 @@ machine - so file edits and shell commands never leave your computer.
 
 ## Getting started
 
-    bun install
-    cp .env.example .env      # then fill in the values
+Requires [Bun](https://bun.sh) and a Postgres database
+([Neon](https://neon.tech) has a free tier).
 
-Set DATABASE_URL to a Postgres connection string (Neon has a free tier), then
-create the tables:
+    bun install
+    cp .env.example .env
+
+Fill in `DATABASE_URL` and `ANTHROPIC_API_KEY`, then create the tables:
 
     bun run --cwd packages/database db:migrate
 
-Run the API server and the CLI in two terminals:
+Run the API and the CLI in two terminals:
 
     bun run dev:server
     bun run dev:cli
 
-## Status
+Everything else in `.env.example` is optional. Without it the server runs
+single-user, unmetered, and with whichever model providers you have keys for.
 
-Under active development, built chapter by chapter. See the chapter list in the
-project notes.
+## Installing the command
+
+To use `drift` from any project rather than from this repo:
+
+    bun run link:cli
+
+That builds the CLI and links it, putting a `drift` command on your PATH. The
+server still runs separately - `drift` talks to it over HTTP, and points the
+agent at whatever directory you run it in.
+
+    cd ~/some-other-project
+    drift
+
+Set `DRIFT_API_URL` if the server is not on `http://localhost:4000`.
+
+The bundle is built with `--packages external`, so every dependency is loaded
+from `node_modules` rather than copied in. That is not an optimisation: OpenTUI
+cannot be bundled (it loads a native binary per platform), and bundling React
+while OpenTUI loads its own copy puts two Reacts in the process. The UI then
+crashes on its first hook with `resolveDispatcher().useState` - while
+`drift --help`, which never renders, keeps working and hides the problem.
+
+### If `drift` is not found, or says bun is not installed
+
+The shim that `bun link` generates expects Bun at `~/.bun/bin/bun.exe`, which
+is where Bun's own installer puts it. If Bun came from npm instead, that file
+does not exist and the shim cannot start. Reinstalling Bun the official way
+fixes it for good:
+
+    powershell -c "irm bun.sh/install.ps1|iex"
+
+As a stopgap on an npm-installed Bun, `npm link` in `packages/cli` also works,
+though on Windows only its `drift.cmd` runs - npm's PowerShell shim looks for
+`bun.exe` too.
+
+## Scripts
+
+| Command | Does |
+| ------- | ---- |
+| `bun run dev:server` | Start the API with hot reload |
+| `bun run dev:cli` | Start the CLI in watch mode |
+| `bun run build:cli` | Bundle the CLI to `packages/cli/dist` |
+| `bun run link:cli` | Build and put `drift` on your PATH |
+| `bun run typecheck` | Typecheck every package |
+| `bun test` | Run the whole suite |
+| `bun run --cwd packages/database db:migrate` | Create and apply a migration |
+| `bun run --cwd packages/database db:generate` | Regenerate the Prisma client |
+| `bun run --cwd packages/database db:studio` | Browse the data |
 
 ## Usage
 
