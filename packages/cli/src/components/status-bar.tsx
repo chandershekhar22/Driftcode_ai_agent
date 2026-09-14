@@ -16,10 +16,16 @@ export type ConnectionState = "connected" | "offline";
 export function StatusBar({
   model,
   mode,
+  account,
+  credits,
   connection,
   hints,
 }: {
   model: string;
+  /** Absent when nobody is signed in, or auth is not configured at all. */
+  account?: string | null;
+  /** Absent when the server meters nothing. */
+  credits?: string | null;
   /** Absent outside a session - the mode belongs to a session, not the app. */
   mode?: AgentMode;
   connection: ConnectionState;
@@ -49,6 +55,10 @@ export function StatusBar({
         <span fg={theme.muted}> {connected ? "connected" : "offline"}</span>
         <span fg={theme.border}>  |  </span>
         <span fg={theme.accent}>{model}</span>
+        {account ? <span fg={theme.border}>{"  |  "}</span> : null}
+        {account ? <span fg={theme.muted}>{account}</span> : null}
+        {credits ? <span fg={theme.border}>{"  |  "}</span> : null}
+        {credits ? <span fg={theme.warning}>{credits}</span> : null}
       </text>
       <text fg={theme.muted} truncate wrapMode="none" flexShrink={1}>
         {hints.map((hint) => `${hint.key} ${hint.label}`).join("   ")}

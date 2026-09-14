@@ -35,6 +35,11 @@ export interface ChatStreamOptions {
   /** Decides which tools the agent is offered. */
   mode: AgentMode;
   /**
+   * Called once a turn has finished, with what it consumed. A callback so this
+   * file knows nothing about billing - it reports, someone else charges.
+   */
+  onUsage?: (usage: { inputTokens: number; outputTokens: number }) => void;
+  /**
    * Already stored; echoed back so the client can replace its optimistic row.
    * Absent when continuing a turn after tool results, which adds no new user
    * message.
@@ -120,6 +125,11 @@ export async function* runChatTurn(
     }
 
     const usage = await result.usage;
+
+    options.onUsage?.({
+      inputTokens: usage.inputTokens ?? 0,
+      outputTokens: usage.outputTokens ?? 0,
+    });
 
     // A turn is still a turn when it is all tool calls and no prose - record
     // what was asked for so the transcript is not a blank bubble.

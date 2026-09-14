@@ -70,6 +70,8 @@ commands as a searchable dialog.
 | `/models` | Choose the model |
 | `/agents` | Switch between plan and build mode |
 | `/theme` | Change the colour theme |
+| `/login`, `/logout` | Sign in or out (only when auth is configured) |
+| `/upgrade` | Buy more credits (only when billing is configured) |
 | `/help` | Show the keyboard shortcuts |
 | `/quit` | Exit |
 
@@ -205,6 +207,79 @@ filesystem on the agent's behalf, and it is deliberately paranoid:
   which occurrence was meant, and changes nothing when it refuses.
 - Every failure is a result the agent can read, never a crash - an exception
   there would abandon a turn you are watching.
+
+## Accounts
+
+Auth is optional, and the server behaves the same either way.
+
+**Unconfigured** (the default): single-user. One implicit owner holds every
+session, no sign-in exists, and `/login` is not even offered - an option that
+can only fail is worse than no option.
+
+**Configured**: people sign in through the browser, and each sees only their
+own sessions. Set the Clerk values in `.env` and restart; see `.env.example`
+for which ones and how to register the redirect URI.
+
+### How sign-in works
+
+The CLI is a public client - it ships to every machine that runs it, so it
+cannot hold a secret. It uses PKCE, and the authorization code is redeemed by
+the **server**, which is the only party holding the provider's client secret.
+
+A redirect URI has to be registered with the provider in advance, but the CLI
+picks its callback port at runtime. So the provider redirects to the server,
+and the server bounces the browser on to whichever port the CLI is listening
+on. The CLI then posts the code and its PKCE verifier to the server, which
+exchanges it, upserts the account, and returns a signed token the CLI stores in
+`~/.drift/auth.json`.
+
+    CLI  --(challenge, port)-->  server  -->  authorize URL
+    browser  -->  provider  -->  server /auth/callback  -->  127.0.0.1:port
+    CLI  --(code, verifier)-->  server  -->  provider  -->  token
+
+### Ownership
+
+Every session belongs to a user. Queries filter on the owner, and a session
+belonging to someone else reads as **not found** rather than forbidden - the
+API should not confirm that an id it will not serve exists.
+
+The `userId` column was added nullable so it needed no data migration; the
+server adopts any orphaned sessions into the local user the first time it
+resolves one.
+
+## Credits
+
+Billing is optional, and the default is off.
+
+**Unconfigured**: nothing is metered, use is unlimited, no balance appears in
+the status bar and `/upgrade` is not offered. `credits: null` means unlimited -
+never zero, because a caller that confused the two would lock everyone out of
+their own server.
+
+**Configured**: each turn is charged against a balance, and `/upgrade` opens a
+checkout to top it up. See `.env.example` for the Polar meter settings, which
+have to match exactly.
+
+### What a credit is
+
+One cent of model spend, computed from the same rates the model registry
+already carries:
+
+    credits = ceil((inTok/1M * inRate + outTok/1M * outRate) / $0.01)
+
+So an Opus turn costs visibly more than a Haiku one, because it does, and the
+price list can never drift from the model list. Every turn costs at least one
+credit - otherwise a loop of tiny requests would run free.
+
+### When it charges, and when it refuses
+
+The balance is checked **before** a turn runs, so someone out of credits gets a
+clean refusal rather than a reply that stops halfway. Usage is reported
+**after**, because charging for work that then failed is worse than
+occasionally letting a turn finish on an empty balance.
+
+If Polar itself is unreachable, the check **fails open**. An outage there
+should not become an outage here; it costs at most a few unmetered turns.
 
 ## Database
 

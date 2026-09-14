@@ -21,6 +21,8 @@ export const indexRoute = new Hono().get("/", (c) =>
       "POST /sessions/:id/chat": "send a turn, stream the reply (ndjson)",
       "POST /sessions/:id/tools": "report tool results, stream what follows",
       "GET /models": "models this server can run",
+      "GET /auth/status": "whether auth is configured, and who you are",
+      "GET /billing/balance": "credits remaining, or null when unmetered",
     },
   }),
 );

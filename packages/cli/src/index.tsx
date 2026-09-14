@@ -7,6 +7,8 @@ import { App } from "./app.tsx";
 import { ApiClientError, apiRequest, apiUrl } from "./lib/api-client.ts";
 import { HELP_TEXT, parseArgs } from "./lib/args.ts";
 import { bold, dim, red, violet, yellow } from "./lib/colors.ts";
+import { fetchAuthStatus, restoreSession } from "./lib/auth-api.ts";
+import { UNMETERED, fetchBalance } from "./lib/billing-api.ts";
 import { readConfig, writeConfig } from "./lib/config.ts";
 import { fallbackCatalog, fetchCatalog } from "./lib/models-api.ts";
 import type { ConnectionState } from "./components/status-bar.tsx";
@@ -101,6 +103,28 @@ async function main() {
     console.log();
   }
 
+  // Any stored token has to be in place before the first request, including
+  // the catalog fetch below - an authenticated server rejects the rest.
+  await restoreSession();
+
+  const authStatus =
+    connection === "connected"
+      ? await fetchAuthStatus().catch(() => ({
+          configured: false,
+          user: null,
+        }))
+      : { configured: false, user: null };
+
+  if (authStatus.configured && !authStatus.user) {
+    console.log(
+      `  ${yellow("!")} Not signed in. Run /login once the UI is up.`,
+    );
+    console.log();
+  }
+
+  const balance =
+    connection === "connected" ? await fetchBalance() : UNMETERED;
+
   // Ask the server what it can actually run, so the picker never offers a
   // model that would fail the moment a message is sent.
   const catalog =
@@ -138,6 +162,8 @@ async function main() {
       initialTheme={theme}
       initialEntries={initialEntries}
       initialConfig={stored}
+      authStatus={authStatus}
+      balance={balance}
       config={{
         version,
         cwd: process.cwd(),

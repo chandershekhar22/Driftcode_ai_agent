@@ -4,6 +4,8 @@ import { HTTPException } from "hono/http-exception";
 import { env } from "./lib/env.ts";
 import { healthRoute } from "./routes/health.ts";
 import { indexRoute } from "./routes/index-route.ts";
+import { authRoute } from "./routes/auth.ts";
+import { billingRoute } from "./routes/billing.ts";
 import { chatRoute } from "./routes/chat.ts";
 import { modelsRoute } from "./routes/models.ts";
 import { sessionsRoute } from "./routes/sessions.ts";
@@ -36,6 +38,8 @@ app.notFound((c) =>
 
 app.route("/", indexRoute);
 app.route("/health", healthRoute);
+app.route("/auth", authRoute);
+app.route("/billing", billingRoute);
 app.route("/models", modelsRoute);
 app.route("/sessions", sessionsRoute);
 app.route("/sessions", chatRoute);

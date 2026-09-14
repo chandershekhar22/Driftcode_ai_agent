@@ -8,6 +8,23 @@ import {
 
 export const apiUrl = process.env.DRIFT_API_URL ?? DEFAULT_API_URL;
 
+/**
+ * The bearer token for this run.
+ *
+ * Module state rather than a parameter on every call: every request needs it,
+ * it changes exactly twice in a run (sign in, sign out), and threading it
+ * through each call site would be noise.
+ */
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+export function authHeaders(): Record<string, string> {
+  return authToken ? { authorization: `Bearer ${authToken}` } : {};
+}
+
 /** Thrown for anything the CLI could not turn into a valid response: a
  *  non-2xx status, an unreachable server, or a body that failed its schema. */
 export class ApiClientError extends Error {
@@ -47,6 +64,7 @@ export async function apiRequest<T extends z.ZodType>(
       headers: {
         "content-type": "application/json",
         [PROTOCOL_HEADER]: String(PROTOCOL_VERSION),
+        ...authHeaders(),
       },
       ...(options.body === undefined
         ? {}

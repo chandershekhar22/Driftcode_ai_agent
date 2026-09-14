@@ -6,5 +6,5 @@ export {
   pingDatabase,
 } from "./client.ts";
 
-export type { Message, Session } from "./generated/client.ts";
+export type { Message, Session, User } from "./generated/client.ts";
 export { MessageRole } from "./generated/enums.ts";

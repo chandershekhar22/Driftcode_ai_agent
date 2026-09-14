@@ -2,6 +2,8 @@ import { useState, type ReactNode } from "react";
 import { useKeyboard, useRenderer } from "@opentui/react";
 import { RouterProvider } from "react-router";
 
+import type { AuthStatus, Balance } from "@driftcode/shared";
+
 import type { DriftConfig } from "./lib/config.ts";
 import type { SessionsClient } from "./lib/sessions-api.ts";
 import { createAppRouter } from "./router.tsx";
@@ -14,6 +16,8 @@ import {
   useConfig,
   type PersistConfig,
 } from "./providers/config/index.tsx";
+import { AuthProvider } from "./providers/auth/index.tsx";
+import { BillingProvider } from "./providers/billing/index.tsx";
 import { DialogProvider } from "./providers/dialog/index.tsx";
 import { SessionsProvider } from "./providers/sessions/index.tsx";
 import { ToastProvider } from "./providers/toast/index.tsx";
@@ -72,6 +76,8 @@ export function App({
   /** Tests pass an in-memory implementation; production uses the HTTP one. */
   sessionsClient,
   autoDismissToasts = true,
+  authStatus = { configured: false, user: null },
+  balance = { configured: false, credits: null },
 }: {
   config: AppConfig;
   initialTheme?: string;
@@ -81,6 +87,10 @@ export function App({
   sessionsClient?: SessionsClient;
   /** Tests hold toasts still so they can be asserted on. */
   autoDismissToasts?: boolean;
+  /** Defaults to single-user, which is what an unconfigured server reports. */
+  authStatus?: AuthStatus;
+  /** Defaults to unmetered, which is what an unconfigured server reports. */
+  balance?: Balance;
 }) {
   // Built exactly once. A useMemo keyed on `initialEntries` would rebuild the
   // router on every render whenever a caller passes an inline array, which
@@ -96,10 +106,14 @@ export function App({
             enabled={config.connection === "connected"}
           >
               <ToastProvider autoDismiss={autoDismissToasts}>
-                <DialogProvider>
+                <AuthProvider initial={authStatus}>
+                  <BillingProvider initial={balance}>
+                    <DialogProvider>
                   <GlobalKeys />
                   <RouterProvider router={router} />
-                </DialogProvider>
+                    </DialogProvider>
+                  </BillingProvider>
+                </AuthProvider>
               </ToastProvider>
           </SessionsProvider>
         </AppConfigProvider>

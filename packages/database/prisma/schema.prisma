@@ -27,6 +27,25 @@ enum MessageRole {
   tool
 }
 
+/// A person. Created from Clerk when auth is configured; otherwise there is
+/// exactly one row, the local user, so sessions always have an owner and
+/// turning auth on later does not orphan anything.
+model User {
+  id String @id @default(cuid())
+
+  /// Null for the local user. Unique when present.
+  clerkId String? @unique
+  email   String?
+  name    String?
+
+  /// The Polar customer this account bills against. Null until billing is
+  /// configured and this person has been registered with it.
+  polarCustomerId String? @unique
+
+  createdAt DateTime @default(now())
+  sessions  Session[]
+}
+
 model Session {
   id    String @id @default(cuid())
   title String @default("New session")
@@ -46,10 +65,15 @@ model Session {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Nullable so the column could be added without a data migration; the
+  /// server adopts any orphans into the local user on first use.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   messages Message[]
 
-  // The session list is always "most recently touched first".
-  @@index([updatedAt(sort: Desc)])
+  // The session list is always one owner's, most recently touched first.
+  @@index([userId, updatedAt(sort: Desc)])
 }
 
 model Message {

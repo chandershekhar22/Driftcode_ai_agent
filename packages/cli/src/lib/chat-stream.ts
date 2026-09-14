@@ -7,7 +7,7 @@ import {
   type ChatEvent,
 } from "@driftcode/shared";
 
-import { ApiClientError, apiUrl } from "./api-client.ts";
+import { ApiClientError, apiUrl, authHeaders } from "./api-client.ts";
 
 /**
  * Consumes the chat route's newline-delimited JSON stream.
@@ -46,6 +46,7 @@ async function* streamNdjson(
       headers: {
         "content-type": "application/json",
         [PROTOCOL_HEADER]: String(PROTOCOL_VERSION),
+        ...authHeaders(),
       },
       body: JSON.stringify(body),
       signal,

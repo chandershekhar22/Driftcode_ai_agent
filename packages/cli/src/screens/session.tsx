@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { resolveModel, summarizeToolCall, type AgentMode } from "@driftcode/shared";
 
@@ -15,6 +15,7 @@ import { Panel } from "../components/panel.tsx";
 import { Spinner } from "../components/spinner.tsx";
 import { useSession } from "../hooks/use-session.ts";
 import { useAppConfig } from "../providers/app-config/index.tsx";
+import { useBilling } from "../providers/billing/index.tsx";
 import { useConfig } from "../providers/config/index.tsx";
 import { useDialog } from "../providers/dialog/index.tsx";
 import { useGatedKeyboard } from "../providers/keyboard-layer/index.tsx";
@@ -32,6 +33,7 @@ export function SessionScreen() {
   const { client, refresh } = useSessions();
   const { isOpen: dialogOpen } = useDialog();
   const { toast } = useToast();
+  const { refresh: refreshBalance } = useBilling();
 
   const {
     session,
@@ -47,7 +49,16 @@ export function SessionScreen() {
     reload,
   } = useSession(sessionId, cwd);
 
-  const menu = useCommandMenu(send);
+  // A turn is what spends credits, so the balance is re-read when one ends.
+  const sendAndMeter = useCallback(
+    async (content: string) => {
+      await send(content);
+      await refreshBalance();
+    },
+    [send, refreshBalance],
+  );
+
+  const menu = useCommandMenu(sendAndMeter);
   const [switchingMode, setSwitchingMode] = useState(false);
 
   // Opening a session makes it the one `drift --resume` reopens.

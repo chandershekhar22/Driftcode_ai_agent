@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import type { User } from "@driftcode/database";
 import { getPrisma } from "@driftcode/database";
 import { chatRequestSchema, continueChatSchema } from "@driftcode/shared";
 
@@ -7,8 +8,12 @@ import { runChatTurn, toNdjsonStream } from "../lib/chat-stream.ts";
 import { buildSafeHistory } from "../lib/history.ts";
 import { appendMessage } from "../lib/messages.ts";
 import { ModelUnavailableError, resolveLanguageModel } from "../lib/models.ts";
+import { creditsForUsage } from "../lib/credits.ts";
+import { recordUsage } from "../lib/polar.ts";
 import { serializeMessage } from "../lib/serialize.ts";
 import { validate } from "../lib/validator.ts";
+import { requireAuth } from "../middleware/require-auth.ts";
+import { requireCredits } from "../middleware/require-credits.ts";
 import { requireDatabase } from "../middleware/require-database.ts";
 import { buildSystemPrompt } from "../system-prompt.ts";
 
@@ -19,10 +24,12 @@ const NDJSON_HEADERS = {
   "x-accel-buffering": "no",
 } as const;
 
-/** Loads a session with its transcript, or 404s. */
-async function loadSession(sessionId: string) {
-  const session = await getPrisma().session.findUnique({
-    where: { id: sessionId },
+/** Loads one of this user's sessions with its transcript, or 404s. */
+async function loadSession(sessionId: string, userId: string) {
+  const session = await getPrisma().session.findFirst({
+    // Another user's session reads as missing rather than forbidden - the API
+    // should not confirm an id it will not serve.
+    where: { id: sessionId, userId },
     include: { messages: { orderBy: { createdAt: "asc" } } },
   });
 
@@ -33,15 +40,19 @@ async function loadSession(sessionId: string) {
   return session;
 }
 
-export const chatRoute = new Hono()
+export const chatRoute = new Hono<{ Variables: { user: User } }>()
   .use("*", requireDatabase)
+  .use("*", requireAuth)
+  // Checked before the model runs, so an empty balance is a clean refusal
+  // rather than a reply that stops halfway.
+  .use("*", requireCredits)
 
   .post("/:id/chat", validate("json", chatRequestSchema), async (c) => {
     const sessionId = c.req.param("id");
     const { content } = c.req.valid("json");
     const prisma = getPrisma();
 
-    const session = await loadSession(sessionId);
+    const session = await loadSession(sessionId, c.get("user").id);
 
     // Resolved before anything is stored, so a missing key is an ordinary
     // error response rather than an error event inside a 200 stream - and the
@@ -75,6 +86,15 @@ export const chatRoute = new Hono()
         { role: "user", content },
       ],
       userMessage: serializeMessage(userMessage),
+      onUsage: (usage) => {
+        // After the turn, never before: charging for work that then failed is
+        // worse than occasionally finishing a turn on an empty balance. Errors
+        // are swallowed - a metering failure must not break a reply.
+        void recordUsage(
+          c.get("user"),
+          creditsForUsage(resolved.spec, usage),
+        ).catch(() => {});
+      },
     });
 
     return new Response(toNdjsonStream(events), { headers: NDJSON_HEADERS });
@@ -92,7 +112,7 @@ export const chatRoute = new Hono()
     const { results } = c.req.valid("json");
     const prisma = getPrisma();
 
-    const session = await loadSession(sessionId);
+    const session = await loadSession(sessionId, c.get("user").id);
 
     let resolved;
     try {
@@ -115,7 +135,7 @@ export const chatRoute = new Hono()
     }
 
     // Re-read so the history includes the results just written.
-    const updated = await loadSession(sessionId);
+    const updated = await loadSession(sessionId, c.get("user").id);
 
     const events = runChatTurn({
       prisma,
@@ -125,6 +145,12 @@ export const chatRoute = new Hono()
       mode: session.mode,
       system: buildSystemPrompt({ cwd: session.cwd, mode: session.mode }),
       messages: buildSafeHistory(updated.messages),
+      onUsage: (usage) => {
+        void recordUsage(
+          c.get("user"),
+          creditsForUsage(resolved.spec, usage),
+        ).catch(() => {});
+      },
       // No user message this time: the turn is a continuation, not a new ask.
     });
 

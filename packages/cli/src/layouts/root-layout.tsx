@@ -6,6 +6,8 @@ import { Header } from "../components/header.tsx";
 import { StatusBar } from "../components/status-bar.tsx";
 import { ToastRail } from "../components/toast-rail.tsx";
 import { useAppConfig } from "../providers/app-config/index.tsx";
+import { describeUser, useAuth } from "../providers/auth/index.tsx";
+import { describeBalance, useBilling } from "../providers/billing/index.tsx";
 import { useDialog } from "../providers/dialog/index.tsx";
 import { useSessions } from "../providers/sessions/index.tsx";
 import { useTheme } from "../providers/theme/index.tsx";
@@ -64,6 +66,8 @@ export function RootLayout() {
   const { pathname } = useLocation();
   const { sessionId } = useParams<{ sessionId: string }>();
   const { isOpen: dialogOpen } = useDialog();
+  const { user } = useAuth();
+  const { balance } = useBilling();
 
   // Inside a session the status bar must name that session's model, not the
   // app-wide default - they differ the moment anyone switches model.
@@ -102,6 +106,8 @@ export function RootLayout() {
       <StatusBar
         model={model.label}
         mode={activeSession?.mode}
+        account={describeUser(user)}
+        credits={describeBalance(balance)}
         connection={connection}
         hints={hintsForPath(pathname)}
       />

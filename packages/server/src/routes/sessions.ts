@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import type { User } from "@driftcode/database";
 import { getPrisma } from "@driftcode/database";
 import {
   createMessageSchema,
@@ -15,13 +16,17 @@ import {
   serializeSession,
   serializeSessionSummary,
 } from "../lib/serialize.ts";
+import { requireAuth } from "../middleware/require-auth.ts";
 import { requireDatabase } from "../middleware/require-database.ts";
 
-export const sessionsRoute = new Hono()
+export const sessionsRoute = new Hono<{ Variables: { user: User } }>()
   .use("*", requireDatabase)
+  .use("*", requireAuth)
 
   .get("/", async (c) => {
     const rows = await getPrisma().session.findMany({
+      // Scoped to the caller: one person's list must never show another's.
+      where: { userId: c.get("user").id },
       orderBy: { updatedAt: "desc" },
       take: 50,
       include: { _count: { select: { messages: true } } },
@@ -39,6 +44,7 @@ export const sessionsRoute = new Hono()
 
     const session = await getPrisma().session.create({
       data: {
+        userId: c.get("user").id,
         model: input.model,
         cwd: input.cwd,
         ...(input.title ? { title: input.title } : {}),
@@ -51,8 +57,11 @@ export const sessionsRoute = new Hono()
   })
 
   .get("/:id", async (c) => {
-    const session = await getPrisma().session.findUnique({
-      where: { id: c.req.param("id") },
+    const session = await getPrisma().session.findFirst({
+      // findFirst with the owner in the filter, so another user's id reads as
+      // "not found" rather than "forbidden" - it should not confirm the id
+      // exists at all.
+      where: { id: c.req.param("id"), userId: c.get("user").id },
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
 
@@ -75,8 +84,8 @@ export const sessionsRoute = new Hono()
       input.title === undefined &&
       input.mode === undefined
     ) {
-      const current = await getPrisma().session.findUnique({
-        where: { id },
+      const current = await getPrisma().session.findFirst({
+        where: { id, userId: c.get("user").id },
         include: { messages: { orderBy: { createdAt: "asc" } } },
       });
 
@@ -98,7 +107,7 @@ export const sessionsRoute = new Hono()
 
     const updated = await getPrisma()
       .session.update({
-        where: { id },
+        where: { id, userId: c.get("user").id },
         data: {
           ...(input.model !== undefined ? { model: input.model } : {}),
           ...(input.title !== undefined ? { title: input.title } : {}),
@@ -119,7 +128,7 @@ export const sessionsRoute = new Hono()
 
     // Messages go with it - the relation is onDelete: Cascade.
     const deleted = await getPrisma()
-      .session.delete({ where: { id } })
+      .session.delete({ where: { id, userId: c.get("user").id } })
       .catch(() => null);
 
     if (!deleted) {
